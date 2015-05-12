@@ -13,7 +13,6 @@ __version__ = "2015-05-10"
 
 import os.path
 import collections
-import tarfile
 
 
 class InvalidFileException(RuntimeError):
@@ -101,9 +100,8 @@ def parse_set_file(content):
     return rows
 
 
-def load_tar(filename):
-    tfile = tarfile.open(filename, 'r')
-    files = tfile.getnames()
+def load_tar(tarfile):
+    files = tarfile.getnames()
     # find map in root
     mapfile = [fname for fname in files
                if '/' not in fname and fname.endswith('.map')]
@@ -119,13 +117,13 @@ def load_tar(filename):
 
     # load map
     map_data = None
-    with tfile.extractfile(mapfile) as mfile:
+    with tarfile.extractfile(mapfile) as mfile:
         content = mfile.readlines()
         map_data = parse_map(content)
 
     # load set file
     set_data = None
-    with tfile.extractfile(setfile) as sfile:
+    with tarfile.extractfile(setfile) as sfile:
         content = sfile.readlines()
         set_data = parse_set_file(content)
 

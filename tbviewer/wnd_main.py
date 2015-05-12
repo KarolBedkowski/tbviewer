@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 """ Main window.
 
@@ -19,7 +20,7 @@ from tkinter import filedialog
 from tkinter import ttk
 from PIL import ImageTk
 
-from tbviewer.logic import map_loader
+from . import map_loader
 
 assert tk
 
@@ -32,7 +33,7 @@ class WndMain(tk.Tk):
         style.theme_use("clam")
 
         self._build_menu()
-        self.title("Simple menu")
+        self.title("TBViewer")
         h = ttk.Scrollbar(self, orient=tk.HORIZONTAL)
         v = ttk.Scrollbar(self, orient=tk.VERTICAL)
         self._canvas = tk.Canvas(self, scrollregion=(0, 0, 1000, 1000),
@@ -66,15 +67,15 @@ class WndMain(tk.Tk):
         if fname is None:
             return
         self._canvas.delete('img')
-        map_data, set_data = map_loader.load_tar(fname)
+        tfile = tarfile.open(fname, 'r')
+        map_data, set_data = map_loader.load_tar(tfile)
         self._canvas.config(scrollregion=(0, 0, map_data['width'],
                                           map_data['height']))
         self._img = []
-        tfile = tarfile.open(fname, 'r')
-        for col, rows in set_data.items():
-            for row, cell in rows.items():
+        for row, rows in set_data.items():
+            for col, cell in rows.items():
                 with tfile.extractfile('set/' + cell) as ffile:
                     img = ImageTk.PhotoImage(data=ffile.read())
                     self._img.append(img)
                     self._canvas_img = self._canvas.create_image(
-                        col, row, image=img, anchor=tk.NW, tag='img')
+                        row, col, image=img, anchor=tk.NW, tag='img')

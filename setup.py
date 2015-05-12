@@ -5,21 +5,19 @@ from setuptools import setup, find_packages
 
 import tbviewer
 import tbviewer.version
-import tbviewer.configuration
 
 CLASSIFIERS = [
     "Development Status :: 4 - Beta",
     'License :: OSI Approved :: GNU General Public License (GPL)'
     "Programming Language :: Python",
-    "Programming Language :: Python :: 2.6",
-    "Programming Language :: Python :: 2.7",
+    "Programming Language :: Python :: 3",
     "Environment :: Win32 (MS Windows)",
     "Environment :: X11 Applications",
 ]
 
 REQUIRES = [
     'setuptools',
-    # 'PyQt4',
+    'tkinter',
 ]
 
 

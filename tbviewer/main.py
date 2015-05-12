@@ -17,7 +17,7 @@ import logging
 _LOG = logging.getLogger(__name__)
 
 
-from tbviewer import version
+from . import version
 
 
 def _parse_opt():
@@ -38,19 +38,8 @@ def run():
     options = _parse_opt()
 
     # logowanie
-    from tbviewer.lib.logging_setup import logging_setup
+    from .logging_setup import logging_setup
     logging_setup("tbviewer.log", options.debug)
-
-    # app config
-    from tbviewer.lib import appconfig
-    config = appconfig.AppConfig("tbviewer.cfg", "tbviewer")
-    config.load_defaults(config.get_data_file("defaults.cfg"))
-    config.load()
-    config.debug = options.debug
-
-    # locale
-    from tbviewer.lib import locales
-    locales.setup_locale(config)
 
     if options.shell:
         # starting interactive shell
@@ -60,9 +49,7 @@ def run():
         app.start()
         return
 
-    from tbviewer.gui import wnd_main
+    from . import wnd_main
 
     window = wnd_main.WndMain()
     window.mainloop()
-
-    config.save()

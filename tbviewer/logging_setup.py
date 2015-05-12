@@ -1,22 +1,18 @@
-#!/usr/bin/python2.4
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 """ Logging setup.
-Copyright (c) Karol Będkowski, 2014
+Copyright (c) Karol Będkowski, 2015
 
 This file is part of exifeditor
 Licence: GPLv2+
 """
 __author__ = "Karol Będkowski"
-__copyright__ = "Copyright (c) Karol Będkowski, 2014"
-__version__ = "date"
+__copyright__ = "Copyright (c) Karol Będkowski, 2015"
+__version__ = "2015-05-12"
 
 import sys
 import os.path
 import logging
-import tempfile
-import time
-
-from . import appconfig
 
 
 class ColorFormatter(logging.Formatter):
@@ -40,22 +36,6 @@ def logging_setup(filename, debug=False):
         debug: (bool) set more messages
     """
     log_fullpath = os.path.abspath(filename)
-    log_dir = os.path.dirname(log_fullpath)
-    log_dir_access = os.access(log_dir, os.W_OK)
-
-    create_temp = False
-    if os.path.isabs(filename):
-        if not log_dir_access:
-            create_temp = True
-    else:
-        if appconfig.is_frozen() or not log_dir_access:
-            create_temp = True
-
-    if create_temp:
-        basename = os.path.basename(filename)
-        spfname = os.path.splitext(basename)
-        filename = spfname[0] + "_" + str(int(time.time())) + spfname[1]
-        log_fullpath = os.path.join(tempfile.gettempdir(), filename)
 
     if debug:
         print("Logging to %s" % log_fullpath, file=sys.stderr)
