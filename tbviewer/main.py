@@ -29,13 +29,13 @@ def _parse_opt():
     group.add_option("--shell", action="store_true", default=False,
                      help="start shell")
     optp.add_option_group(group)
-    return optp.parse_args()[0]
+    return optp.parse_args()
 
 
 def run():
     """ Run application. """
     # parse options
-    options = _parse_opt()
+    options, args = _parse_opt()
 
     # logowanie
     from .logging_setup import logging_setup
@@ -51,5 +51,9 @@ def run():
 
     from . import wnd_main
 
-    window = wnd_main.WndMain()
+    fname = None
+    if args and args[0]:
+        fname = args[0]
+
+    window = wnd_main.WndMain(fname)
     window.mainloop()

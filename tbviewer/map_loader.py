@@ -35,7 +35,7 @@ def parse_map(content):
     # WGS 84,,0.0000,0.0000,
     # Reserved 1
     # Reserved 2
-    # Magnetic Variation,,,E                                                                                                                                                  Map Projection,Transverse Mercator,PolyCal,No,AutoCalOnly,No,BSBUseWPX,No
+    # Magnetic Variation,,,E
     # Point01,xy,    0,    0,
     # Point02,xy, 6656,    0,
     # Point03,xy, 6656, 7680,
@@ -76,7 +76,7 @@ def parse_map(content):
     # MMPXY,3,6656,7680
     # MMPXY,4,0,7680
     # MMPLL,1,  19.23346,  50.85753
-    # MMPLL,2,  19.611825,  50.85616                                                                                                                                          MMPLL,3,  19.608237,  50.57983
+    # MMPLL,2,  19.611825,  50.85616
     # MMPLL,4,   19.232091,  50.581187
     # MM1B,     4
     # MOP,Map Open Position,0,0
@@ -128,3 +128,29 @@ def load_tar(tarfile):
         set_data = parse_set_file(content)
 
     return map_data, set_data
+
+
+def is_atlas(tarfile):
+    files = tarfile.getnames()
+    mapfile = [fname for fname in files
+               if '/' not in fname and fname.endswith('.tba')]
+    if mapfile and mapfile[0]:
+        with tarfile.extractfile(mapfile[0]) as mfile:
+            content = mfile.read()
+            return content and content.decode().strip() == 'Atlas 1.0'
+    return False
+
+
+def get_sets(tarfile, basedir):
+    files = [fname
+             for fname in tarfile.getnames()
+             if fname.endswith('.set')]
+    for fname in files:
+        if os.path.isfile(os.path.join(basedir, fname)):
+            yield fname
+        else:
+            tarred_fname = os.path.splitext(fname)[0] + '.tar'
+            if os.path.isfile(os.path.join(basedir, tarred_fname)):
+                yield tarred_fname
+            else:
+                print("missing %s and %s", fname, tarred_fname)
