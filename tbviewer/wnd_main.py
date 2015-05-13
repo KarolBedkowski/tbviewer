@@ -13,14 +13,12 @@ __copyright__ = "Copyright (c) Karol Będkowski, 2015"
 __version__ = "2015-05-10"
 
 
-import tarfile
 import logging
 import os.path
 
 import tkinter as tk
 from tkinter import filedialog
 from tkinter import ttk
-from PIL import ImageTk
 
 from . import map_loader
 
@@ -81,37 +79,31 @@ class WndMain(tk.Tk):
 
     def _load(self, fname):
         self._canvas.delete('img')
+        self._img = []
         for iid, in self._sets.keys():
             self._tree.delete(iid)
         _LOG.info('Loading %s', fname)
-        tfile = tarfile.open(fname, 'r')
+        mapfile = map_loader.MapFile(fname)
         # check for atlas
-        if map_loader.is_atlas(tfile):
+        if mapfile.is_atlas():
             _LOG.info('loading atlas')
-            sets = list(map_loader.get_sets(tfile, os.path.dirname(fname)))
             album_dir = os.path.dirname(fname)
-            for idx, set_ in enumerate(sets):
+            for idx, set_ in enumerate(mapfile.get_sets()):
                 iid = self._tree.insert('', idx, text=os.path.dirname(set_))
                 self._sets[iid] = os.path.join(album_dir, set_)
         else:
             _LOG.info('loading map')
-            self._load_set('set/', tfile)
+            self._load_set(fname)
 
-    def _load_set(self, set_path, tfile=None, fname=None):
-        tfile = tfile or tarfile.open(fname, 'r')
-        map_data, set_data = map_loader.load_tar(tfile)
-        self._canvas.config(scrollregion=(0, 0, map_data['width'],
-                                          map_data['height']))
-        self._img = []
-        for row, rows in set_data.items():
-            for col, cell in rows.items():
-                with tfile.extractfile(set_path + cell) as ffile:
-                    img = ImageTk.PhotoImage(data=ffile.read())
-                    self._img.append(img)
-                    self._canvas_img = self._canvas.create_image(
-                        row, col, image=img, anchor=tk.NW, tag='img')
+    def _load_set(self, filename):
+        mapset = map_loader.MapSet(filename)
+        self._canvas.config(scrollregion=(0, 0, mapset.width, mapset.height)),
+        for row, col, img in mapset.get_images():
+            self._img.append(img)
+            self._canvas_img = self._canvas.create_image(
+                row, col, image=img, anchor=tk.NW, tag='img')
 
     def _on_tree_click(self, event):
         item = self._tree.identify('item', event.x, event.y)
         if item:
-            self._load_set("set/", fname=self._sets[item])
+            self._load_set(self._sets[item])

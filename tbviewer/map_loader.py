@@ -13,6 +13,13 @@ __version__ = "2015-05-10"
 
 import os.path
 import collections
+import tarfile
+import logging
+
+from PIL import ImageTk
+
+
+_LOG = logging.getLogger(__name__)
 
 
 class InvalidFileException(RuntimeError):
@@ -75,27 +82,53 @@ def load_tar(tarfile):
     return map_data, set_data
 
 
-def is_atlas(tarfile):
-    files = tarfile.getnames()
-    mapfile = [fname for fname in files
-               if '/' not in fname and fname.endswith('.tba')]
-    if mapfile and mapfile[0]:
-        with tarfile.extractfile(mapfile[0]) as mfile:
-            content = mfile.read()
-            return content and content.decode().strip() == 'Atlas 1.0'
-    return False
+class MapFile:
+    def __init__(self, name):
+        self.name = name
+        self.directory = os.path.dirname(name)
+        self._tarfile = tarfile.open(name, 'r')
+        self.files = self._tarfile.getnames()
 
+    def is_atlas(self):
+        mapfile = [fname for fname in self.files
+                if '/' not in fname and fname.endswith('.tba')]
+        if mapfile and mapfile[0]:
+            with self._tarfile.extractfile(mapfile[0]) as mfile:
+                content = mfile.read()
+                return content and content.decode().strip() == 'Atlas 1.0'
+        return False
 
-def get_sets(tarfile, basedir):
-    files = [fname
-             for fname in tarfile.getnames()
-             if fname.endswith('.set')]
-    for fname in files:
-        if os.path.isfile(os.path.join(basedir, fname)):
-            yield fname
-        else:
-            tarred_fname = os.path.splitext(fname)[0] + '.tar'
-            if os.path.isfile(os.path.join(basedir, tarred_fname)):
-                yield tarred_fname
+    def get_sets(self):
+        files = [fname for fname in self.files if fname.endswith('.map')]
+        for fname in files:
+            if os.path.isfile(os.path.join(self.directory, fname)):
+                yield fname
             else:
-                print("missing %s and %s", fname, tarred_fname)
+                tarred_fname = os.path.splitext(fname)[0] + '.tar'
+                if os.path.isfile(os.path.join(self.directory, tarred_fname)):
+                    yield tarred_fname
+                else:
+                    print("missing %s and %s", fname, tarred_fname)
+
+
+class MapSet:
+    def __init__(self, name):
+        _LOG.info("MapSet %s", name)
+        self._name = name
+        self._tarfile = tarfile.open(name, 'r')
+        self._map_data, self._set_data = load_tar(self._tarfile)
+
+    @property
+    def width(self):
+        return self._map_data['width']
+
+    @property
+    def height(self):
+        return self._map_data['height']
+
+    def get_images(self):
+        for row, rows in self._set_data.items():
+            for col, cell in rows.items():
+                with self._tarfile.extractfile('set/' + cell) as ffile:
+                    img = ImageTk.PhotoImage(data=ffile.read())
+                    yield row, col, img
