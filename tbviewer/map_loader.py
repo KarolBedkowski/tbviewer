@@ -60,24 +60,22 @@ def load_tar(tarfile):
     if not mapfile:
         raise InvalidFileException('map file not found')
     mapfile = mapfile[0]
-    # find set file
-    setfile = [fname for fname in files
-               if '/' not in fname and fname.endswith('.set')]
-    if not setfile:
-        raise InvalidFileException('set file not found')
-    setfile = setfile[0]
-
     # load map
     map_data = None
     with tarfile.extractfile(mapfile) as mfile:
         content = mfile.readlines()
         map_data = parse_map(content)
 
-    # load set file
-    set_data = None
-    with tarfile.extractfile(setfile) as sfile:
-        content = sfile.readlines()
-        set_data = parse_set_file(content)
+    # find set file
+    set_data = collections.defaultdict(dict)
+    for ifile in files:
+        if ifile.endswith('.map') or ifile.endswith('.set'):
+            continue
+        name = os.path.splitext(ifile)[0]
+        dummy, y, x = name.split('_')
+        y = int(y)
+        x = int(x)
+        set_data[y][x] = ifile
 
     return map_data, set_data
 
@@ -129,6 +127,6 @@ class MapSet:
     def get_images(self):
         for row, rows in self._set_data.items():
             for col, cell in rows.items():
-                with self._tarfile.extractfile('set/' + cell) as ffile:
+                with self._tarfile.extractfile(cell) as ffile:
                     img = ImageTk.PhotoImage(data=ffile.read())
                     yield row, col, img
