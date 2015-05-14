@@ -146,9 +146,11 @@ class MapSet:
                     yield row, col, img
 
     def _get_tile_size(self):
+        # get tile size - find minimal pos (x,y) > 0
+        width = min(key for key in self._set_data.keys() if key > 0)
         for row in self._set_data.values():
-            return (self.width / len(self._set_data),
-                    self.height / len(row))
+            height = min(key for key in row.keys() if key > 0)
+            return width, height
 
     def get_tile(self, x, y):
         name = self._set_data[x][y]

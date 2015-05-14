@@ -15,6 +15,7 @@ __version__ = "2015-05-10"
 
 import logging
 import os.path
+import time
 
 import tkinter as tk
 from tkinter import filedialog
@@ -35,10 +36,9 @@ class WndMain(tk.Tk):
         self._build_menu()
         self.title("TBViewer")
 
-        self._canvas_tiles_x = 10
-        self._canvas_tiles_y = 8
         self._mapset = None
         self._tiles = {}
+        self._sets = {}
 
         self._tree = ttk.Treeview(self)
         self._tree.grid(column=0, row=0, sticky=(tk.N, tk.S, tk.E))
@@ -57,12 +57,10 @@ class WndMain(tk.Tk):
         v.grid(column=3, row=0, sticky=(tk.N, tk.S))
         self.grid_columnconfigure(2, weight=1)
         self.grid_rowconfigure(0, weight=1)
-        self._canvas_img = None
-        self._img = None
-        self._sets = {}
         if fname:
             self._load(fname)
         self._tree.bind("<Button-1>", self._on_tree_click)
+        self._canvas.bind("<Configure>", self._draw_tiles)
 
     def onExit(self):
         self.quit()
@@ -84,7 +82,6 @@ class WndMain(tk.Tk):
 
     def _load(self, fname):
         self._canvas.delete('img')
-        self._img = []
         for iid, in self._sets.keys():
             self._tree.delete(iid)
         _LOG.info('Loading %s', fname)
@@ -97,6 +94,7 @@ class WndMain(tk.Tk):
                 iid = self._tree.insert('', idx,
                                         text=os.path.dirname(set_)[adirlen:])
                 self._sets[iid] = set_
+                self._clear_tile_cache()
         else:
             _LOG.info('loading map')
             self._load_set(fname)
@@ -123,27 +121,35 @@ class WndMain(tk.Tk):
     def _draw_tiles(self, clear=False):
         if not self._mapset:
             return
-        tile_start_x = max(self._canvas.canvasx(0), 0) // 256
-        tile_start_y = max(self._canvas.canvasy(0), 0) // 256
+        tstart = time.time()
+        canvas = self._canvas
+        mapset_get_tile = self._mapset.get_tile
+        tile_width = self._mapset.tile_width
+        tile_height = self._mapset.tile_height
+        tiles_x = (canvas.winfo_width() // tile_width) + 2
+        tiles_y = (canvas.winfo_height() // tile_height) + 2
+        tile_start_x = max(canvas.canvasx(0), 0) // tile_width
+        tile_start_y = max(canvas.canvasy(0), 0) // tile_height
         new_tile_list = {}
-        for x in range(self._canvas_tiles_x):
-            tx = int((x + tile_start_x) * 256)
-            for y in range(self._canvas_tiles_y):
-                ty = int((y + tile_start_y) * 256)
+        for x in range(tiles_x):
+            tx = int((x + tile_start_x) * tile_width)
+            for y in range(tiles_y):
+                ty = int((y + tile_start_y) * tile_height)
                 if (tx, ty) in self._tiles:
                     new_tile_list[(tx, ty)] = self._tiles[(tx, ty)]
                 else:
                     try:
-                        img = self._mapset.get_tile(tx, ty)
-                        iid = self._canvas.create_image(
+                        img = mapset_get_tile(tx, ty)
+                        iid = canvas.create_image(
                             tx, ty, image=img, anchor=tk.NW)
                         new_tile_list[(tx, ty)] = iid, img
                     except:
                         pass
         for txty, (iid, _) in self._tiles.items():
             if txty not in new_tile_list:
-                self._canvas.delete(iid)
+                canvas.delete(iid)
         self._tiles = new_tile_list
+        _LOG.debug("_draw_tiles in %s", time.time() - tstart)
 
     def _clear_tile_cache(self):
         for (iid, _) in self._tiles.values():
