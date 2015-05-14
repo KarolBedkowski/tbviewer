@@ -35,17 +35,22 @@ class WndMain(tk.Tk):
         self._build_menu()
         self.title("TBViewer")
 
+        self._canvas_tiles_x = 10
+        self._canvas_tiles_y = 8
+        self._mapset = None
+        self._tiles = {}
+
         self._tree = ttk.Treeview(self)
         self._tree.grid(column=0, row=0, sticky=(tk.N, tk.S, tk.E))
         ttk.Separator(self, orient=tk.VERTICAL).grid(row=0, column=1,
                                                      sticky='ns')
 
-        h = ttk.Scrollbar(self, orient=tk.HORIZONTAL)
-        v = ttk.Scrollbar(self, orient=tk.VERTICAL)
+        self._scrollbar_h = h = ttk.Scrollbar(self, orient=tk.HORIZONTAL)
+        self._scrollbar_v = v = ttk.Scrollbar(self, orient=tk.VERTICAL)
         self._canvas = tk.Canvas(self, scrollregion=(0, 0, 1000, 1000),
                                  yscrollcommand=v.set, xscrollcommand=h.set)
-        h['command'] = self._canvas.xview
-        v['command'] = self._canvas.yview
+        h['command'] = self._move_scroll_h
+        v['command'] = self._move_scroll_v
         ttk.Sizegrip(self).grid(column=3, row=1, sticky=(tk.S, tk.E))
         self._canvas.grid(column=2, row=0, sticky=(tk.N, tk.S, tk.E, tk.W))
         h.grid(column=2, row=1, sticky=(tk.W, tk.E))
@@ -96,14 +101,44 @@ class WndMain(tk.Tk):
             self._load_set(fname)
 
     def _load_set(self, filename):
-        mapset = map_loader.MapSet(filename)
+        self._mapset = mapset = map_loader.MapSet(filename)
         self._canvas.config(scrollregion=(0, 0, mapset.width, mapset.height)),
-        for row, col, img in mapset.get_images():
-            self._img.append(img)
-            self._canvas_img = self._canvas.create_image(
-                row, col, image=img, anchor=tk.NW, tag='img')
+        self._draw_tiles()
+#        for row, col, img in mapset.get_images():
+#            self._canvas_img = self._canvas.create_image(
+#                row, col, image=img, anchor=tk.NW, tag='img')
 
     def _on_tree_click(self, event):
         item = self._tree.identify('item', event.x, event.y)
         if item:
             self._load_set(self._sets[item])
+
+    def _move_scroll_v(self, scroll, num, units=None):
+        self._canvas.yview(scroll, num, units)
+        self._draw_tiles()
+
+    def _move_scroll_h(self, scroll, num, units=None):
+        self._canvas.xview(scroll, num, units)
+        self._draw_tiles()
+
+    def _draw_tiles(self):
+        if not self._mapset:
+            return
+        tile_start_x = max(self._canvas.canvasx(0), 0) // 256
+        tile_start_y = max(self._canvas.canvasy(0), 0) // 256
+        new_tile_list = {}
+        for x in range(self._canvas_tiles_x):
+            tx = int((x + tile_start_x) * 256)
+            for y in range(self._canvas_tiles_y):
+                ty = int((y + tile_start_y) * 256)
+                if (tx, ty) in self._tiles:
+                    new_tile_list[(tx, ty)] = self._tiles[(tx, ty)]
+                else:
+                    try:
+                        img = self._mapset.get_tile(tx, ty)
+                        iid = self._canvas.create_image(tx, ty, image=img,
+                                                        anchor=tk.NW)
+                        new_tile_list[(tx, ty)] = iid, img
+                    except:
+                        pass
+        self._tiles = new_tile_list

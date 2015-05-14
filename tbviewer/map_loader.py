@@ -69,7 +69,8 @@ def load_tar(tarfile):
     # find set file
     set_data = collections.defaultdict(dict)
     for ifile in files:
-        if ifile.endswith('.map') or ifile.endswith('.set'):
+        if ifile.endswith('.map') or ifile.endswith('.set') or \
+                '_' not in ifile:
             continue
         name = os.path.splitext(ifile)[0]
         dummy, y, x = name.split('_')
@@ -115,6 +116,7 @@ class MapSet:
         self._name = name
         self._tarfile = tarfile.open(name, 'r')
         self._map_data, self._set_data = load_tar(self._tarfile)
+        self.tile_width, self.tile_height = self._get_tile_size()
 
     @property
     def width(self):
@@ -130,3 +132,13 @@ class MapSet:
                 with self._tarfile.extractfile(cell) as ffile:
                     img = ImageTk.PhotoImage(data=ffile.read())
                     yield row, col, img
+
+    def _get_tile_size(self):
+        for row in self._set_data.values():
+            return (self.width / len(self._set_data),
+                    self.height / len(row))
+
+    def get_tile(self, x, y):
+        name = self._set_data[x][y]
+        with self._tarfile.extractfile(name) as ffile:
+            return ImageTk.PhotoImage(data=ffile.read())
