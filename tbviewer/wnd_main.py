@@ -92,21 +92,20 @@ class WndMain(tk.Tk):
         # check for atlas
         if mapfile.is_atlas():
             _LOG.info('loading atlas')
-            album_dir = os.path.dirname(fname)
-            for idx, set_ in enumerate(mapfile.get_sets()):
-                iid = self._tree.insert('', idx, text=os.path.dirname(set_))
-                self._sets[iid] = os.path.join(album_dir, set_)
+            adirlen = len(os.path.dirname(fname)) + 1
+            for idx, set_ in enumerate(sorted(mapfile.get_sets())):
+                iid = self._tree.insert('', idx,
+                                        text=os.path.dirname(set_)[adirlen:])
+                self._sets[iid] = set_
         else:
             _LOG.info('loading map')
             self._load_set(fname)
 
     def _load_set(self, filename):
         self._mapset = mapset = map_loader.MapSet(filename)
-        self._canvas.config(scrollregion=(0, 0, mapset.width, mapset.height)),
-        self._draw_tiles()
-#        for row, col, img in mapset.get_images():
-#            self._canvas_img = self._canvas.create_image(
-#                row, col, image=img, anchor=tk.NW, tag='img')
+        self._canvas.config(scrollregion=(0, 0, mapset.width, mapset.height))
+        self._clear_tile_cache()
+        self._draw_tiles(True)
 
     def _on_tree_click(self, event):
         item = self._tree.identify('item', event.x, event.y)
@@ -121,7 +120,7 @@ class WndMain(tk.Tk):
         self._canvas.xview(scroll, num, units)
         self._draw_tiles()
 
-    def _draw_tiles(self):
+    def _draw_tiles(self, clear=False):
         if not self._mapset:
             return
         tile_start_x = max(self._canvas.canvasx(0), 0) // 256
@@ -136,9 +135,17 @@ class WndMain(tk.Tk):
                 else:
                     try:
                         img = self._mapset.get_tile(tx, ty)
-                        iid = self._canvas.create_image(tx, ty, image=img,
-                                                        anchor=tk.NW)
+                        iid = self._canvas.create_image(
+                            tx, ty, image=img, anchor=tk.NW)
                         new_tile_list[(tx, ty)] = iid, img
                     except:
                         pass
+        for txty, (iid, _) in self._tiles.items():
+            if txty not in new_tile_list:
+                self._canvas.delete(iid)
         self._tiles = new_tile_list
+
+    def _clear_tile_cache(self):
+        for (iid, _) in self._tiles.values():
+            self._canvas.delete(iid)
+        self._tiles = {}

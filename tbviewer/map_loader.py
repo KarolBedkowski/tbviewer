@@ -36,7 +36,7 @@ def parse_map(content):
         if line.startswith('IWH,Map Image Width/Height,'):
             result['width'], result['height'] = map(int, line[27:].split(','))
     if 'width' not in result:
-        raise InvalidFileException("missing widh/height")
+        raise InvalidFileException("missing width/height")
     return result
 
 
@@ -100,14 +100,26 @@ class MapFile:
     def get_sets(self):
         files = [fname for fname in self.files if fname.endswith('.map')]
         for fname in files:
-            if os.path.isfile(os.path.join(self.directory, fname)):
+            fpath = _check_filename(self.directory, fname)
+            if fpath:
                 yield fname
-            else:
-                tarred_fname = os.path.splitext(fname)[0] + '.tar'
-                if os.path.isfile(os.path.join(self.directory, tarred_fname)):
-                    yield tarred_fname
-                else:
-                    print("missing %s and %s", fname, tarred_fname)
+                continue
+            fpath = _check_filename(self.directory,
+                                    os.path.splitext(fname)[0] + '.tar')
+            if fpath:
+                yield fpath
+                continue
+            print("missing %s " % fname)
+
+
+def _check_filename(dirname, filename):
+    fpath = os.path.join(dirname, filename)
+    if os.path.isfile(fpath):
+        return fpath
+    fpath = os.path.join(dirname, filename.lower())
+    if os.path.isfile(fpath):
+        return fpath
+    return None
 
 
 class MapSet:
