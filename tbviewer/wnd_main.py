@@ -64,6 +64,8 @@ class WndMain(tk.Tk):
 
         self._tree.bind("<Button-1>", self._on_tree_click)
         self._canvas.bind("<Configure>", self._draw_tiles)
+        self._canvas.bind("<ButtonPress-1>", self._scroll_start)
+        self._canvas.bind("<B1-Motion>", self._scroll_move)
 
     def onExit(self):
         self.quit()
@@ -121,6 +123,14 @@ class WndMain(tk.Tk):
 
     def _move_scroll_h(self, scroll, num, units=None):
         self._canvas.xview(scroll, num, units)
+        self._draw_tiles()
+
+    def _scroll_start(self, event):
+        self._canvas.scan_mark(event.x, event.y)
+        self._draw_tiles()
+
+    def _scroll_move(self, event):
+        self._canvas.scan_dragto(event.x, event.y, gain=1)
         self._draw_tiles()
 
     def _draw_tiles(self, clear=False):
