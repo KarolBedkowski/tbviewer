@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-""" Main window.
+""" Map loader routines.
 
 Copyright (c) Karol Będkowski, 2015
 
@@ -9,7 +9,7 @@ Licence: GPLv2+
 
 __author__ = "Karol Będkowski"
 __copyright__ = "Copyright (c) Karol Będkowski, 2015"
-__version__ = "2015-05-10"
+__version__ = "2015-05-14"
 
 import os.path
 import collections
@@ -27,9 +27,10 @@ class InvalidFileException(RuntimeError):
 
 
 def parse_map(content):
+    """ Parse content of .map file """
     content = [line.decode('cp1250').strip() for line in content]
     # OziExplorer Map Data File Version 2.2
-    if str(content[0]) != 'OziExplorer Map Data File Version 2.2':
+    if content[0] != 'OziExplorer Map Data File Version 2.2':
         raise InvalidFileException("Wrong header %r" % content[0])
     result = {'filename': os.path.splitext(content[1])[0]}
     for line in content[2:]:
@@ -40,48 +41,8 @@ def parse_map(content):
     return result
 
 
-def parse_set_file(content):
-    rows = collections.defaultdict(dict)
-    for line in sorted(l.decode().strip() for l in content):
-        # basename_y_x.png
-        name = os.path.splitext(line)[0]
-        dummy, y, x = name.split('_')
-        y = int(y)
-        x = int(x)
-        rows[y][x] = line
-    return rows
-
-
-def load_tar(tarfile):
-    files = tarfile.getnames()
-    # find map in root
-    mapfile = [fname for fname in files
-               if '/' not in fname and fname.endswith('.map')]
-    if not mapfile:
-        raise InvalidFileException('map file not found')
-    mapfile = mapfile[0]
-    # load map
-    map_data = None
-    with tarfile.extractfile(mapfile) as mfile:
-        content = mfile.readlines()
-        map_data = parse_map(content)
-
-    # find set file
-    set_data = collections.defaultdict(dict)
-    for ifile in files:
-        if ifile.endswith('.map') or ifile.endswith('.set') or \
-                '_' not in ifile:
-            continue
-        name = os.path.splitext(ifile)[0]
-        dummy, y, x = name.split('_')
-        y = int(y)
-        x = int(x)
-        set_data[y][x] = ifile
-
-    return map_data, set_data
-
-
 class MapFile:
+    """ Map file - album or set. """
     def __init__(self, name):
         self.name = name
         self.directory = os.path.dirname(name)
@@ -123,27 +84,24 @@ def _check_filename(dirname, filename):
 
 
 class MapSet:
+    """ Single map. """
     def __init__(self, name):
-        _LOG.info("MapSet %s", name)
-        self._name = name
+        _LOG.info("MapSet %r", name)
         self._tarfile = tarfile.open(name, 'r')
-        self._map_data, self._set_data = load_tar(self._tarfile)
+        self._map_data = {}
+        self._set_data = collections.defaultdict(dict)
+        self._load_tar()
         self.tile_width, self.tile_height = self._get_tile_size()
 
     @property
     def width(self):
+        """ Whole map width. """
         return self._map_data['width']
 
     @property
     def height(self):
+        """ Whole map height. """
         return self._map_data['height']
-
-    def get_images(self):
-        for row, rows in self._set_data.items():
-            for col, cell in rows.items():
-                with self._tarfile.extractfile(cell) as ffile:
-                    img = ImageTk.PhotoImage(data=ffile.read())
-                    yield row, col, img
 
     def _get_tile_size(self):
         # get tile size - find minimal pos (x,y) > 0
@@ -153,6 +111,30 @@ class MapSet:
             return width, height
 
     def get_tile(self, x, y):
+        """ Get one tile from tar file. """
         name = self._set_data[x][y]
         with self._tarfile.extractfile(name) as ffile:
             return ImageTk.PhotoImage(data=ffile.read())
+
+    def _load_tar(self):
+        files = self._tarfile.getnames()
+        # find map in root
+        mapfile = [fname for fname in files
+                if '/' not in fname and fname.endswith('.map')]
+        if not mapfile:
+            raise InvalidFileException('map file not found')
+        mapfile = mapfile[0]
+        # load map
+        with self._tarfile.extractfile(mapfile) as mfile:
+            content = mfile.readlines()
+            self._map_data = parse_map(content)
+
+        # find set files
+        set_data = self._set_data
+        for ifile in files:
+            if ifile.endswith('.map') or ifile.endswith('.set') or \
+                    '_' not in ifile:
+                continue
+            name = os.path.splitext(ifile)[0]
+            dummy, y, x = name.split('_')
+            set_data[int(y)][int(x)] = ifile

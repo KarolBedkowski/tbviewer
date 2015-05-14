@@ -3,7 +3,7 @@
 """ Logging setup.
 Copyright (c) Karol Będkowski, 2015
 
-This file is part of exifeditor
+This file is part of tbviewer
 Licence: GPLv2+
 """
 __author__ = "Karol Będkowski"

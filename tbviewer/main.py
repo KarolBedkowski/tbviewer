@@ -51,9 +51,7 @@ def run():
 
     from . import wnd_main
 
-    fname = None
-    if args and args[0]:
-        fname = args[0]
+    fname = args[0] if args and args[0] else None
 
     window = wnd_main.WndMain(fname)
     window.mainloop()

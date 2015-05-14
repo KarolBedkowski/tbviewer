@@ -10,7 +10,7 @@ Licence: GPLv2+
 
 __author__ = "Karol Będkowski"
 __copyright__ = "Copyright (c) Karol Będkowski, 2015"
-__version__ = "2015-05-10"
+__version__ = "2015-05-14"
 
 
 import logging
@@ -41,9 +41,9 @@ class WndMain(tk.Tk):
         self._sets = {}
 
         self._tree = ttk.Treeview(self)
-        self._tree.grid(column=0, row=0, sticky=(tk.N, tk.S, tk.E))
+        self._tree.grid(column=0, row=0, sticky=tk.NSEW)
         ttk.Separator(self, orient=tk.VERTICAL).grid(row=0, column=1,
-                                                     sticky='ns')
+                                                     sticky=tk.NS)
 
         self._scrollbar_h = h = ttk.Scrollbar(self, orient=tk.HORIZONTAL)
         self._scrollbar_v = v = ttk.Scrollbar(self, orient=tk.VERTICAL)
@@ -51,14 +51,17 @@ class WndMain(tk.Tk):
                                  yscrollcommand=v.set, xscrollcommand=h.set)
         h['command'] = self._move_scroll_h
         v['command'] = self._move_scroll_v
-        ttk.Sizegrip(self).grid(column=3, row=1, sticky=(tk.S, tk.E))
-        self._canvas.grid(column=2, row=0, sticky=(tk.N, tk.S, tk.E, tk.W))
-        h.grid(column=2, row=1, sticky=(tk.W, tk.E))
-        v.grid(column=3, row=0, sticky=(tk.N, tk.S))
+        ttk.Sizegrip(self).grid(column=3, row=1, sticky=tk.SE)
+
+        self._canvas.grid(column=2, row=0, sticky=tk.NSEW)
+        h.grid(column=2, row=1, sticky=tk.EW)
+        v.grid(column=3, row=0, sticky=tk.NS)
         self.grid_columnconfigure(2, weight=1)
         self.grid_rowconfigure(0, weight=1)
+
         if fname:
             self._load(fname)
+
         self._tree.bind("<Button-1>", self._on_tree_click)
         self._canvas.bind("<Configure>", self._draw_tiles)
 
@@ -87,6 +90,8 @@ class WndMain(tk.Tk):
         _LOG.info('Loading %s', fname)
         mapfile = map_loader.MapFile(fname)
         # check for atlas
+        self._mapset = None
+        self._clear_tile_cache()
         if mapfile.is_atlas():
             _LOG.info('loading atlas')
             adirlen = len(os.path.dirname(fname)) + 1
@@ -94,12 +99,12 @@ class WndMain(tk.Tk):
                 iid = self._tree.insert('', idx,
                                         text=os.path.dirname(set_)[adirlen:])
                 self._sets[iid] = set_
-                self._clear_tile_cache()
         else:
             _LOG.info('loading map')
             self._load_set(fname)
 
     def _load_set(self, filename):
+        _LOG.info("_load_set %s", filename)
         self._mapset = mapset = map_loader.MapSet(filename)
         self._canvas.config(scrollregion=(0, 0, mapset.width, mapset.height))
         self._clear_tile_cache()
@@ -126,17 +131,22 @@ class WndMain(tk.Tk):
         mapset_get_tile = self._mapset.get_tile
         tile_width = self._mapset.tile_width
         tile_height = self._mapset.tile_height
-        tiles_x = (canvas.winfo_width() // tile_width) + 2
-        tiles_y = (canvas.winfo_height() // tile_height) + 2
-        tile_start_x = max(canvas.canvasx(0), 0) // tile_width
-        tile_start_y = max(canvas.canvasy(0), 0) // tile_height
+        tile_start_x = int(
+            (max(canvas.canvasx(0), 0) // tile_width) * tile_width)
+        tile_start_y = int(
+            (max(canvas.canvasy(0), 0) // tile_height) * tile_height)
+        tiles_x = int(tile_start_x
+                      + ((canvas.winfo_width() // tile_width) + 2)
+                      * tile_width)
+        tiles_y = int(tile_start_y
+                      + ((canvas.winfo_height() // tile_height) + 2)
+                      * tile_height)
         new_tile_list = {}
-        for x in range(tiles_x):
-            tx = int((x + tile_start_x) * tile_width)
-            for y in range(tiles_y):
-                ty = int((y + tile_start_y) * tile_height)
-                if (tx, ty) in self._tiles:
-                    new_tile_list[(tx, ty)] = self._tiles[(tx, ty)]
+        for tx in range(tile_start_x, tiles_x, tile_width):
+            for ty in range(tile_start_y, tiles_y, tile_height):
+                iidimg = self._tiles.get((tx, ty))
+                if iidimg:
+                    new_tile_list[(tx, ty)] = iidimg
                 else:
                     try:
                         img = mapset_get_tile(tx, ty)
@@ -145,6 +155,7 @@ class WndMain(tk.Tk):
                         new_tile_list[(tx, ty)] = iid, img
                     except:
                         pass
+        # remove unused tiles
         for txty, (iid, _) in self._tiles.items():
             if txty not in new_tile_list:
                 canvas.delete(iid)
