@@ -19,6 +19,7 @@ import time
 
 import tkinter as tk
 from tkinter import filedialog
+from tkinter import messagebox
 from tkinter import ttk
 
 from . import map_loader
@@ -93,7 +94,11 @@ class WndMain(tk.Tk):
         self._clear_tile_cache()
         _LOG.info('Loading %s', fname)
         if fname.endswith('.tar'):
-            mapfile = map_loader.MapFile(fname)
+            try:
+                mapfile = map_loader.MapFile(fname)
+            except Exception as err:
+                messagebox.showerror("Error loading file", str(err))
+                return
             # check for atlas
             if mapfile.is_atlas():
                 _LOG.info('loading atlas')
@@ -107,13 +112,20 @@ class WndMain(tk.Tk):
                 self._load_set(fname)
         elif fname.endswith('.map'):
             self._load_set(fname)
+        else:
+            messagebox.showerror("Error loading file",
+                                 "Invalid file - should be .map or .tar")
 
     def _load_set(self, filename):
         _LOG.info("_load_set %s", filename)
-        if filename.endswith('.tar'):
-            mapset = map_loader.MapSetTarred(filename)
-        else:
-            mapset = map_loader.MapSet(filename)
+        try:
+            if filename.endswith('.tar'):
+                mapset = map_loader.MapSetTarred(filename)
+            else:
+                mapset = map_loader.MapSet(filename)
+        except Exception as err:
+            messagebox.showerror("Error loading file", str(err))
+            return
         self._mapset = mapset
         self._canvas.config(scrollregion=(0, 0, mapset.width, mapset.height))
         self._clear_tile_cache()
