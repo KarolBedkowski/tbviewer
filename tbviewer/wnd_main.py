@@ -81,33 +81,40 @@ class WndMain(tk.Tk):
 
     def _open_file(self):
         dlg = filedialog.FileDialog(self)
-        fname = dlg.go(".", "*.tar")
+        fname = dlg.go(".", "*.*")
         if fname:
             self._load(fname)
 
     def _load(self, fname):
         self._canvas.delete('img')
-        for iid, in self._sets.keys():
+        for iid in self._sets.keys():
             self._tree.delete(iid)
-        _LOG.info('Loading %s', fname)
-        mapfile = map_loader.MapFile(fname)
-        # check for atlas
         self._mapset = None
         self._clear_tile_cache()
-        if mapfile.is_atlas():
-            _LOG.info('loading atlas')
-            adirlen = len(os.path.dirname(fname)) + 1
-            for idx, set_ in enumerate(sorted(mapfile.get_sets())):
-                iid = self._tree.insert('', idx,
-                                        text=os.path.dirname(set_)[adirlen:])
-                self._sets[iid] = set_
-        else:
-            _LOG.info('loading map')
+        _LOG.info('Loading %s', fname)
+        if fname.endswith('.tar'):
+            mapfile = map_loader.MapFile(fname)
+            # check for atlas
+            if mapfile.is_atlas():
+                _LOG.info('loading atlas')
+                adirlen = len(os.path.dirname(fname)) + 1
+                for idx, set_ in enumerate(sorted(mapfile.get_sets())):
+                    iid = self._tree.insert(
+                        '', idx, text=os.path.dirname(set_)[adirlen:])
+                    self._sets[iid] = set_
+            else:
+                _LOG.info('loading map')
+                self._load_set(fname)
+        elif fname.endswith('.map'):
             self._load_set(fname)
 
     def _load_set(self, filename):
         _LOG.info("_load_set %s", filename)
-        self._mapset = mapset = map_loader.MapSet(filename)
+        if filename.endswith('.tar'):
+            mapset = map_loader.MapSetTarred(filename)
+        else:
+            mapset = map_loader.MapSet(filename)
+        self._mapset = mapset
         self._canvas.config(scrollregion=(0, 0, mapset.width, mapset.height))
         self._clear_tile_cache()
         self._draw_tiles(True)
