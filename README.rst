@@ -30,6 +30,8 @@ Runtime Requirements
 
 * Python3
 * tkinter
+* python pil imagetk (python3-pil.imagetk)
+
 
 
 Licence
