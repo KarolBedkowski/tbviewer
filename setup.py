@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-import os
 from setuptools import setup, find_packages
 
 import tbviewer
@@ -21,23 +20,10 @@ REQUIRES = [
 ]
 
 
-def find_files(directory, base, filter_func=None):
-    for name, _subdirs, files in os.walk(directory):
-        if files:
-            yield (os.path.join(base[:-len(directory)], name),
-                   [os.path.join(name, fname) for fname
-                    in filter(filter_func, files)])
-
-
-def get_data_files():
-    for x in find_files('data', "data"):
-        yield x
-
-
 setup(
     name='tbviewer',
     version=tbviewer.version.VERSION,
-    description='tbviewer - web information aggregator.',
+    description='tbviewer - Trekbuddy atlas/map viewer.',
     long_description=open("README.rst").read(),
     classifiers=CLASSIFIERS,
     author='Karol Będkowski',
@@ -49,11 +35,10 @@ setup(
     packages=find_packages('.'),
     package_dir={'': '.'},
     include_package_data=True,
-    # data_files=list(get_data_files()),
     install_requires=REQUIRES,
     entry_points="""
        [console_scripts]
        tbviewer.py = tbviewer.main:run
     """,
-    zip_safe=False,
+    zip_safe=True,
 )

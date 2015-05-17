@@ -38,7 +38,7 @@ def logging_setup(filename, debug=False):
     log_fullpath = os.path.abspath(filename)
 
     if debug:
-        print("Logging to %s" % log_fullpath, file=sys.stderr)
+        sys.stderr.write("Logging to %s" % log_fullpath)
 
     if debug:
         level_console = logging.DEBUG

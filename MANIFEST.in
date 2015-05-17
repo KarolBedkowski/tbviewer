@@ -4,5 +4,4 @@ include COPYING
 include README.rst
 include Makefile
 include TODO
-recursive-include tbviewer *.py *.ui
-recursive-include data *
+recursive-include tbviewer *.py
