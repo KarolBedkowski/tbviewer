@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 import os
 from setuptools import setup, find_packages
@@ -53,7 +53,7 @@ setup(
     install_requires=REQUIRES,
     entry_points="""
        [console_scripts]
-       tbviewer = tbviewer.main:run
+       tbviewer.py = tbviewer.main:run
     """,
     zip_safe=False,
 )
