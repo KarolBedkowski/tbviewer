@@ -174,5 +174,8 @@ class MapSetTarred(MapSet):
                     '_' not in ifile:
                 continue
             name = os.path.splitext(ifile)[0]
-            dummy, y, x = name.split('_')
+            print(repr(name))
+            itms = name.split('_')
+            y = itms[-2]
+            x = itms[-1]
             set_data[int(y)][int(x)] = ifile
