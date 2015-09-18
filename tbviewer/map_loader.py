@@ -51,7 +51,7 @@ class MapFile(object):
 
     def is_atlas(self):
         mapfile = [fname for fname in self.files
-                   if '/' not in fname and fname.endswith('.tba')]
+                   if fname.endswith('.tba')]
         if mapfile and mapfile[0]:
             with self._tarfile.extractfile(mapfile[0]) as mfile:
                 content = mfile.read()
@@ -61,16 +61,29 @@ class MapFile(object):
     def get_sets(self):
         files = [fname for fname in self.files if fname.endswith('.map')]
         for fname in files:
+            _LOG.debug("MapFile.get_sets checking %s", fname)
             fpath = _check_filename(self.directory, fname)
             if fpath:
                 yield fname
+                _LOG.debug("MapFile.get_sets found %s", fname)
                 continue
-            fpath = _check_filename(self.directory,
-                                    os.path.splitext(fname)[0] + '.tar')
+            lfname = os.path.splitext(fname)[0] + '.tar'
+            fpath = _check_filename(self.directory, lfname)
+            _LOG.debug("MapFile.get_sets checking %s (%s)", lfname, fpath)
             if fpath:
                 yield fpath
+                _LOG.debug("MapFile.get_sets found %s", fname)
                 continue
-            print("missing %s " % fname)
+            # is any tar file there?
+            tardir = os.path.join(self.directory, os.path.dirname(fname))
+            tars = [fname for fname in os.listdir(tardir)
+                    if fname.endswith('.tar')]
+            if len(tars) == 1:
+                yield os.path.join(tardir, tars[0])
+                _LOG.debug("MapFile.get_sets found %s/%s", tardir, tars[0])
+                continue
+
+            _LOG.warn("MapFile.get_sets missing %s", fname)
 
 
 def _check_filename(dirname, filename):
@@ -110,6 +123,7 @@ class MapSet(object):
             return width, height
 
     def _load_data(self):
+        _LOG.debug("MapSet._load_data %s", self.name)
         if os.path.isdir(self.name):
             map_file = [fname for fname in os.listdir(self.name)
                         if fname.endswith('.map')
@@ -117,6 +131,8 @@ class MapSet(object):
             if not map_file:
                 raise InvalidFileException(".map file not found")
             self.name = os.path.join(self.name, map_file[0])
+
+        _LOG.debug("MapSet._load_data mapfile=%s", self.name)
 
         if not os.path.isfile(self.name) or not self.name.endswith('.map'):
             raise InvalidFileException("invalid file - should be .map")
@@ -154,14 +170,16 @@ class MapSetTarred(MapSet):
             return ImageTk.PhotoImage(data=ffile.read())
 
     def _load_data(self):
+        _LOG.debug("MapSetTarred._load_data %s", self.name)
         self._tarfile = tarfile.open(self.name, 'r')
         files = self._tarfile.getnames()
         # find map in root
         mapfile = [fname for fname in files
-                   if '/' not in fname and fname.endswith('.map')]
+                   if fname.endswith('.map')]
         if not mapfile:
             raise InvalidFileException('map file not found')
         mapfile = mapfile[0]
+        _LOG.debug("MapSetTarred._load_data mapfile: %s", mapfile)
         # load map
         with self._tarfile.extractfile(mapfile) as mfile:
             content = [line.decode('cp1250') for line in mfile.readlines()]
@@ -174,7 +192,6 @@ class MapSetTarred(MapSet):
                     '_' not in ifile:
                 continue
             name = os.path.splitext(ifile)[0]
-            print(repr(name))
             itms = name.split('_')
             y = itms[-2]
             x = itms[-1]
