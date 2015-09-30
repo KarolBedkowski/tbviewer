@@ -154,7 +154,9 @@ class MapSet(object):
                     '_' not in ifile:
                 continue
             name = os.path.splitext(ifile)[0]
-            dummy, y, x = name.split('_')
+            names = name.split('_')
+            y = names[-2]
+            x = names[-1]
             set_data[int(y)][int(x)] = os.path.join(setdirname, ifile)
 
     def get_tile(self, x, y):
