@@ -13,6 +13,9 @@ __version__ = "2015-05-10"
 
 import optparse
 import logging
+import tempfile
+import time
+import os
 
 _LOG = logging.getLogger(__name__)
 
@@ -39,7 +42,8 @@ def run():
 
     # logowanie
     from .logging_setup import logging_setup
-    logging_setup("tbviewer.log", options.debug)
+    logdir = tempfile.mkdtemp("_log_" + str(int(time.time())), "tbviewer_")
+    logging_setup(os.path.join(logdir, "tbviewer.log"), options.debug)
 
     if options.shell:
         # starting interactive shell

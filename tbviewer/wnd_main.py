@@ -97,6 +97,7 @@ class WndMain(tk.Tk):
             try:
                 mapfile = map_loader.MapFile(fname)
             except Exception as err:
+                _LOG.exception("Error loading file")
                 messagebox.showerror("Error loading file", str(err))
                 return
             # check for atlas
@@ -124,6 +125,7 @@ class WndMain(tk.Tk):
             else:
                 mapset = map_loader.MapSet(filename)
         except Exception as err:
+            _LOG.exception("Error loading file")
             messagebox.showerror("Error loading file", str(err))
             return
         self._mapset = mapset
