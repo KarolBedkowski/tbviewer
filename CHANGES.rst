@@ -1,6 +1,12 @@
 Changelog
 =========
 
+v0.2.2 2015-09-30
+-----------------
+* bugfix: loading untarred maps with _ in name
+* bugfix: loading 1-tile maps
+* fix logging
+
 v0.2.1 2015-09-12
 -----------------
 * bugfix
