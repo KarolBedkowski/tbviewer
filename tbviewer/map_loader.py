@@ -117,9 +117,15 @@ class MapSet(object):
 
     def _get_tile_size(self):
         # get tile size - find minimal pos (x,y) > 0
-        width = min(key for key in self._set_data.keys() if key > 0)
+        if len(self._set_data) == 1:
+            width = self._map_data['width']
+        else:
+            width = min(key for key in self._set_data.keys() if key > 0)
         for row in self._set_data.values():
-            height = min(key for key in row.keys() if key > 0)
+            if len(row) == 1:
+                height = self._map_data['height']
+            else:
+                height = min(key for key in row.keys() if key > 0)
             return width, height
 
     def _load_data(self):
