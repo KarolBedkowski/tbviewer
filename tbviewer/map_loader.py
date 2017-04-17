@@ -1,16 +1,11 @@
 # -*- coding: utf-8 -*-
 """ Map loader routines.
 
-Copyright (c) Karol Będkowski, 2015
+Copyright (c) Karol Będkowski, 2015-2017
 
 This file is part of tbviewer
 Licence: GPLv2+
 """
-
-__author__ = "Karol Będkowski"
-__copyright__ = "Copyright (c) Karol Będkowski, 2015"
-__version__ = "2015-05-14"
-
 import os.path
 import collections
 import tarfile
@@ -19,11 +14,63 @@ import logging
 from PIL import ImageTk
 
 
+__author__ = "Karol Będkowski"
+__copyright__ = "Copyright (c) Karol Będkowski, 2015-2017"
+
 _LOG = logging.getLogger(__name__)
 
 
 class InvalidFileException(RuntimeError):
     pass
+
+
+class MapMeta(object):
+    """docstring for MapMeta"""
+    def __init__(self):
+        super(MapMeta, self).__init__()
+        self.width = 0
+        self.height = 0
+        self.filename = None
+        self._points = []
+        self.lat_pix = 0
+        self.lon_pix = 0
+        self.min_lat = 0
+        self.min_lon = 0
+
+    def valid(self):
+        return self.width and self.height
+
+    def add_mmpll(self, point_id, lon, lat):
+        if point_id != len(self._points) - 1:
+            _LOG.warn("point of out order")
+        self._points.append((lon, lat))
+
+    def calculate(self):
+        self.min_lon, self.min_lat = self._points[0]
+        self.lat_pix = (self._points[3][1] - self._points[0][1])\
+            / self.height
+        self.lon_pix = (self._points[1][0] - self._points[0][0])\
+            / self.width
+
+    def xy2lonlat(self, x, y):
+        """ Calculate lon & lat from position. """
+        return (x * self.lon_pix + self.min_lon,
+                y * self.lat_pix + self.min_lat)
+
+
+def _parse_mmpll(line):
+    fields = line.split(',')
+    if len(fields) != 4:
+        raise InvalidFileException("Wrong number of fields in MMPLL field %r"
+                                   % line)
+    _, point_id, lon, lat = [field.strip() for field in fields]
+    try:
+        point_id = int(point_id)
+        lon = float(lon)
+        lat = float(lat)
+    except ValueError as err:
+        raise InvalidFileException("Wrong MMPLL field %r; %s" % (line, err))
+    return point_id, lon, lat
 
 
 def parse_map(content):
@@ -32,12 +79,21 @@ def parse_map(content):
     # OziExplorer Map Data File Version 2.2
     if content[0] != 'OziExplorer Map Data File Version 2.2':
         raise InvalidFileException("Wrong header %r" % content[0])
-    result = {'filename': os.path.splitext(content[1])[0]}
+
+    result = MapMeta()
+    result.filename = os.path.splitext(content[1])[0]
     for line in content[2:]:
         if line.startswith('IWH,Map Image Width/Height,'):
-            result['width'], result['height'] = map(int, line[27:].split(','))
-    if 'width' not in result:
+            result.width, result.height = map(int, line[27:].split(','))
+            continue
+        if line.startswith('MMPLL'):
+            point_id, lon, lat = _parse_mmpll(line)
+            result.add_mmpll(point_id, lon, lat)
+
+    if not result.valid():
         raise InvalidFileException("missing width/height")
+
+    result.calculate()
     return result
 
 
@@ -100,7 +156,7 @@ class MapSet(object):
     def __init__(self, name):
         _LOG.info("MapSet %r", name)
         self.name = name
-        self._map_data = {}
+        self.map_data = None
         self._set_data = collections.defaultdict(dict)
         self._load_data()
         self.tile_width, self.tile_height = self._get_tile_size()
@@ -108,22 +164,22 @@ class MapSet(object):
     @property
     def width(self):
         """ Whole map width. """
-        return self._map_data['width']
+        return self.map_data.width
 
     @property
     def height(self):
         """ Whole map height. """
-        return self._map_data['height']
+        return self.map_data.height
 
     def _get_tile_size(self):
         # get tile size - find minimal pos (x,y) > 0
         if len(self._set_data) == 1:
-            width = self._map_data['width']
+            width = self.map_data.width
         else:
             width = min(key for key in self._set_data.keys() if key > 0)
         for row in self._set_data.values():
             if len(row) == 1:
-                height = self._map_data['height']
+                height = self.map_data.height
             else:
                 height = min(key for key in row.keys() if key > 0)
             return width, height
@@ -144,7 +200,7 @@ class MapSet(object):
             raise InvalidFileException("invalid file - should be .map")
 
         with open(self.name) as mapfile:
-            self._map_data = parse_map(mapfile.readlines())
+            self.map_data = parse_map(mapfile.readlines())
 
         # find set files
         set_data = self._set_data
@@ -191,7 +247,7 @@ class MapSetTarred(MapSet):
         # load map
         with self._tarfile.extractfile(mapfile) as mfile:
             content = [line.decode('cp1250') for line in mfile.readlines()]
-            self._map_data = parse_map(content)
+            self.map_data = parse_map(content)
 
         # find set files
         set_data = self._set_data

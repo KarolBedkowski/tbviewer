@@ -2,20 +2,17 @@
 # -*- coding: utf-8 -*-
 """ Main window.
 
-Copyright (c) Karol Będkowski, 2015
+Copyright (c) Karol Będkowski, 2015-2017
 
 This file is part of tbviewer
 Licence: GPLv2+
 """
 
-__author__ = "Karol Będkowski"
-__copyright__ = "Copyright (c) Karol Będkowski, 2015"
-__version__ = "2015-05-14"
-
-
 import logging
 import os.path
 import time
+import locale
+import math
 
 import tkinter as tk
 from tkinter import filedialog
@@ -23,6 +20,10 @@ from tkinter import messagebox
 from tkinter import ttk
 
 from . import map_loader
+
+
+__author__ = "Karol Będkowski"
+__copyright__ = "Copyright (c) Karol Będkowski, 2015-2017"
 
 _LOG = logging.getLogger(__name__)
 
@@ -52,13 +53,17 @@ class WndMain(tk.Tk):
                                  yscrollcommand=v.set, xscrollcommand=h.set)
         h['command'] = self._move_scroll_h
         v['command'] = self._move_scroll_v
-        ttk.Sizegrip(self).grid(column=3, row=1, sticky=tk.SE)
+        ttk.Sizegrip(self).grid(column=3, row=2, sticky=tk.SE)
 
         self._canvas.grid(column=2, row=0, sticky=tk.NSEW)
         h.grid(column=2, row=1, sticky=tk.EW)
         v.grid(column=3, row=0, sticky=tk.NS)
         self.grid_columnconfigure(2, weight=1)
         self.grid_rowconfigure(0, weight=1)
+
+        self._status = tk.Label(self, text="", bd=1, relief=tk.SUNKEN,
+                                anchor=tk.W)
+        self._status.grid(column=0, row=2, columnspan=3, sticky=tk.EW)
 
         if fname:
             self._load(fname)
@@ -67,6 +72,7 @@ class WndMain(tk.Tk):
         self._canvas.bind("<Configure>", self._draw_tiles)
         self._canvas.bind("<ButtonPress-1>", self._scroll_start)
         self._canvas.bind("<B1-Motion>", self._scroll_move)
+        self._canvas.bind('<Motion>', self._canvas_mouse_motion)
 
     def onExit(self):
         self.quit()
@@ -154,6 +160,18 @@ class WndMain(tk.Tk):
         self._canvas.scan_dragto(event.x, event.y, gain=1)
         self._draw_tiles()
 
+    def _canvas_mouse_motion(self, event):
+        if not self._mapset:
+            self._status.config(text='')
+            self._status.update_idletasks()
+            return
+        x = self._canvas.canvasx(event.x)
+        y = self._canvas.canvasy(event.y)
+        lon, lat = self._mapset.map_data.xy2lonlat(x, y)
+        self._status.config(text=_format_degree(lon) + " " +
+                            _format_degree(lat, True))
+        self._status.update_idletasks()
+
     def _draw_tiles(self, clear=False):
         if not self._mapset:
             return
@@ -197,3 +215,12 @@ class WndMain(tk.Tk):
         for (iid, _) in self._tiles.values():
             self._canvas.delete(iid)
         self._tiles = {}
+
+
+def _format_degree(degree, latitude=True):
+    lit = ["NS", "EW"][0 if latitude else 1][0 if degree > 0 else 1]
+    degree = abs(degree)
+    mint, stop = math.modf(degree)
+    sec, mint = math.modf(mint * 60)
+    return "%d %d' %s'' %s" % (stop, mint,
+                               locale.format('%0.2f', sec * 60), lit)
