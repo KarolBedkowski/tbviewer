@@ -47,6 +47,7 @@ class MapMeta(object):
 
     def calculate(self):
         self.min_lon, self.min_lat = self._points[0]
+        self.max_lon, self.max_lat = self._points[3]
         self.lat_pix = (self._points[3][1] - self._points[0][1])\
             / self.height
         self.lon_pix = (self._points[1][0] - self._points[0][0])\
@@ -54,8 +55,11 @@ class MapMeta(object):
 
     def xy2lonlat(self, x, y):
         """ Calculate lon & lat from position. """
-        return (x * self.lon_pix + self.min_lon,
-                y * self.lat_pix + self.min_lat)
+        return _map_xy_lonlat(
+            self._points[0], self._points[1],
+            self._points[2], self._points[3],
+            self.width, self.height,
+            x, y)
 
 
 def _parse_mmpll(line):
@@ -260,3 +264,32 @@ class MapSetTarred(MapSet):
             y = itms[-2]
             x = itms[-1]
             set_data[int(y)][int(x)] = ifile
+
+
+def _map_xy_lonlat(xy0, xy1, xy2, xy3, sx, sy, x, y):
+    x0, y0 = xy0
+    x1, y1 = xy1
+    x2, y2 = xy2
+    x3, y3 = xy3
+
+    syy = sy - y
+    sxx = sx - x
+
+    return _intersect_lines(
+        (syy * x0 + y * x3) / sy, (syy * y0 + y * y3) / sy,
+        (syy * x1 + y * x2) / sy, (syy * y1 + y * y2) / sy,
+        (sxx * x0 + x * x1) / sx, (sxx * y0 + x * y1) / sx,
+        (sxx * x3 + x * x2) / sx, (sxx * y3 + x * y2) / sx)
+
+
+def _det(a, b, c, d):
+    return a * d - b * c
+
+
+def _intersect_lines(x1, y1, x2, y2, x3, y3, x4, y4):
+    d = _det(x1 - x2, y1 - y2, x3 - x4, y3 - y4) or 1
+    d1 = _det(x1, y1, x2, y2)
+    d2 = _det(x3, y3, x4, y4)
+    px = _det(d1, x1 - x2, d2, x3 - x4) / d
+    py = _det(d1, y1 - y2, d2, y3 - y4) / d
+    return px, py
