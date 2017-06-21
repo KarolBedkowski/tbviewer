@@ -41,6 +41,7 @@ class WndMain(tk.Tk):
         self._mapset = None
         self._tiles = {}
         self._sets = {}
+        self._last_dir = "."
 
         self._tree = ttk.Treeview(self)
         self._tree.grid(column=0, row=0, sticky=tk.NSEW)
@@ -88,9 +89,10 @@ class WndMain(tk.Tk):
 
     def _open_file(self):
         dlg = filedialog.FileDialog(self)
-        fname = dlg.go(".", "*.*")
+        fname = dlg.go(self._last_dir, "*.*")
         if fname:
             self._load(fname)
+            self._last_dir = os.path.dirname(fname)
 
     def _load(self, fname):
         self._canvas.delete('img')
