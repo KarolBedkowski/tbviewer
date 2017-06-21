@@ -97,7 +97,11 @@ class WndMain(tk.Tk):
     def _load(self, fname):
         self._canvas.delete('img')
         for iid in self._sets.keys():
-            self._tree.delete(iid)
+            try:
+                self._tree.delete(iid)
+            except:
+                pass
+        self._sets = {}
         self._mapset = None
         self._clear_tile_cache()
         _LOG.info('Loading %s', fname)
