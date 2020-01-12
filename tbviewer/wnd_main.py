@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """ Main window.
 
-Copyright (c) Karol Będkowski, 2015-2017
+Copyright (c) Karol Będkowski, 2015-2020
 
 This file is part of tbviewer
 Licence: GPLv2+
@@ -23,7 +23,7 @@ from . import map_loader
 
 
 __author__ = "Karol Będkowski"
-__copyright__ = "Copyright (c) Karol Będkowski, 2015-2017"
+__copyright__ = "Copyright (c) Karol Będkowski, 2015-2020"
 
 _LOG = logging.getLogger(__name__)
 
@@ -38,7 +38,8 @@ class WndMain(tk.Tk):
         self._build_menu()
         self.title("TBViewer")
 
-        self._mapset = None
+        self._atlas = None
+        self._map = None
         self._tiles = {}
         self._sets = {}
         self._last_dir = "."
@@ -101,54 +102,49 @@ class WndMain(tk.Tk):
                 self._tree.delete(iid)
             except:
                 pass
-        self._sets = {}
-        self._mapset = None
-        self._clear_tile_cache()
-        _LOG.info('Loading %s', fname)
-        if fname.endswith('.tar'):
-            try:
-                mapfile = map_loader.MapFile(fname)
-            except Exception as err:
-                _LOG.exception("Error loading file")
-                messagebox.showerror("Error loading file", str(err))
-                return
-            # check for atlas
-            if mapfile.is_atlas():
-                _LOG.info('loading atlas')
-                adirlen = len(os.path.dirname(fname)) + 1
-                for idx, set_ in enumerate(sorted(mapfile.get_sets())):
-                    iid = self._tree.insert(
-                        '', idx, text=os.path.dirname(set_)[adirlen:])
-                    self._sets[iid] = set_
-            else:
-                _LOG.info('loading map')
-                self._load_set(fname)
-        elif fname.endswith('.map'):
-            self._load_set(fname)
-        else:
-            messagebox.showerror("Error loading file",
-                                 "Invalid file - should be .map or .tar")
 
-    def _load_set(self, filename):
-        _LOG.info("_load_set %s", filename)
-        try:
-            if filename.endswith('.tar'):
-                mapset = map_loader.MapSetTarred(filename)
-            else:
-                mapset = map_loader.MapSet(filename)
-        except Exception as err:
-            _LOG.exception("Error loading file")
-            messagebox.showerror("Error loading file", str(err))
+        if self._atlas:
+            self._atlas.close()
+            self._atlas = None
+        if self._map:
+            self._map.close()
+            self._map = None
+
+        self._sets = {}
+        self._clear_tile_cache()
+
+        file_type = map_loader.check_file_type(fname)
+        _LOG.info('Loading %s, %r', fname, file_type)
+        if file_type in ('atlas', 'tar-atlas'):
+            self._atlas = map_loader.Atlas(fname)
+        elif file_type in ('map', 'tar-map'):
+            self._atlas = map_loader.FakeAlbum(fname)
+        else:
+            messagebox.showerror(
+                "Error loading file",
+                "Invalid file - should be .map or .tar or .tba")
             return
-        self._mapset = mapset
-        self._canvas.config(scrollregion=(0, 0, mapset.width, mapset.height))
+
+        idx = 0
+        for layer, maps in self._atlas.layers:
+            for map_name, map_path in maps:
+                _LOG.debug("tree ins: %s %s %s", layer, map_name, map_path)
+                iid = self._tree.insert('', idx, text=layer + ":" + map_name)
+                self._sets[iid] = map_path
+                idx += 1
+
+    def _load_map(self, filename):
+        _LOG.info("_load_map %s", filename)
+        self._map = map_loader.Map(filename)
+        self._canvas.config(scrollregion=(0, 0, self._map.width,
+                                          self._map.height))
         self._clear_tile_cache()
         self._draw_tiles(True)
 
     def _on_tree_click(self, event):
         item = self._tree.identify('item', event.x, event.y)
         if item:
-            self._load_set(self._sets[item])
+            self._load_map(self._sets[item])
 
     def _move_scroll_v(self, scroll, num, units=None):
         self._canvas.yview(scroll, num, units)
@@ -167,25 +163,25 @@ class WndMain(tk.Tk):
         self._draw_tiles()
 
     def _canvas_mouse_motion(self, event):
-        if not self._mapset:
+        if not self._map:
             self._status.config(text='')
             self._status.update_idletasks()
             return
         x = self._canvas.canvasx(event.x)
         y = self._canvas.canvasy(event.y)
-        lon, lat = self._mapset.map_data.xy2lonlat(x, y)
+        lon, lat = self._map.map_data.xy2lonlat(x, y)
         self._status.config(text=_format_degree(lon) + " " +
                             _format_degree(lat, True))
         self._status.update_idletasks()
 
     def _draw_tiles(self, clear=False):
-        if not self._mapset:
+        if not self._map:
             return
         tstart = time.time()
         canvas = self._canvas
-        mapset_get_tile = self._mapset.get_tile
-        tile_width = self._mapset.tile_width
-        tile_height = self._mapset.tile_height
+        mapset_get_tile = self._map.get_tile
+        tile_width = self._map.tile_width
+        tile_height = self._map.tile_height
         tile_start_x = int(
             (max(canvas.canvasx(0), 0) // tile_width) * tile_width)
         tile_start_y = int(
@@ -203,13 +199,12 @@ class WndMain(tk.Tk):
                 if iidimg:
                     new_tile_list[(tx, ty)] = iidimg
                 else:
-                    try:
-                        img = mapset_get_tile(tx, ty)
+                    img = mapset_get_tile(tx, ty)
+                    if img:
                         iid = canvas.create_image(
                             tx, ty, image=img, anchor=tk.NW)
                         new_tile_list[(tx, ty)] = iid, img
-                    except:
-                        pass
+
         # remove unused tiles
         for txty, (iid, _) in self._tiles.items():
             if txty not in new_tile_list:
