@@ -38,10 +38,10 @@ class WndMain(tk.Tk):
         self._build_menu()
         self.title("TBViewer")
 
-        self._atlas = None
-        self._map = None
+        self._tb_atlas = None
+        self._current_map = None
         self._tiles = {}
-        self._sets = {}
+        self._tb_maps = {}
         self._last_dir = "."
 
         self._tree = ttk.Treeview(self)
@@ -97,28 +97,28 @@ class WndMain(tk.Tk):
 
     def _load(self, fname):
         self._canvas.delete('img')
-        for iid in self._sets.keys():
+        for iid in self._tb_maps.keys():
             try:
                 self._tree.delete(iid)
-            except:
+            finally:
                 pass
 
-        if self._atlas:
-            self._atlas.close()
-            self._atlas = None
-        if self._map:
-            self._map.close()
-            self._map = None
+        if self._tb_atlas:
+            self._tb_atlas.close()
+            self._tb_atlas = None
+        if self._current_map:
+            self._current_map.close()
+            self._current_map = None
 
-        self._sets = {}
+        self._tb_maps = {}
         self._clear_tile_cache()
 
         file_type = map_loader.check_file_type(fname)
         _LOG.info('Loading %s, %r', fname, file_type)
         if file_type in ('atlas', 'tar-atlas'):
-            self._atlas = map_loader.Atlas(fname)
+            self._tb_atlas = map_loader.Atlas(fname)
         elif file_type in ('map', 'tar-map'):
-            self._atlas = map_loader.FakeAlbum(fname)
+            self._tb_atlas = map_loader.FakeAlbum(fname)
         else:
             messagebox.showerror(
                 "Error loading file",
@@ -126,25 +126,25 @@ class WndMain(tk.Tk):
             return
 
         idx = 0
-        for layer, maps in self._atlas.layers:
+        for layer, maps in self._tb_atlas.layers:
             for map_name, map_path in maps:
                 _LOG.debug("tree ins: %s %s %s", layer, map_name, map_path)
                 iid = self._tree.insert('', idx, text=layer + ":" + map_name)
-                self._sets[iid] = map_path
+                self._tb_maps[iid] = map_path
                 idx += 1
 
     def _load_map(self, filename):
         _LOG.info("_load_map %s", filename)
-        self._map = map_loader.Map(filename)
-        self._canvas.config(scrollregion=(0, 0, self._map.width,
-                                          self._map.height))
+        self._current_map = map_loader.Map(filename)
+        self._canvas.config(scrollregion=(0, 0, self._current_map.width,
+                                          self._current_map.height))
         self._clear_tile_cache()
         self._draw_tiles(True)
 
     def _on_tree_click(self, event):
         item = self._tree.identify('item', event.x, event.y)
         if item:
-            self._load_map(self._sets[item])
+            self._load_map(self._tb_maps[item])
 
     def _move_scroll_v(self, scroll, num, units=None):
         self._canvas.yview(scroll, num, units)
@@ -163,25 +163,25 @@ class WndMain(tk.Tk):
         self._draw_tiles()
 
     def _canvas_mouse_motion(self, event):
-        if not self._map:
+        if not self._current_map:
             self._status.config(text='')
             self._status.update_idletasks()
             return
         x = self._canvas.canvasx(event.x)
         y = self._canvas.canvasy(event.y)
-        lon, lat = self._map.map_data.xy2lonlat(x, y)
+        lon, lat = self._current_map.map_data.xy2lonlat(x, y)
         self._status.config(text=_format_degree(lon) + " " +
                             _format_degree(lat, True))
         self._status.update_idletasks()
 
     def _draw_tiles(self, clear=False):
-        if not self._map:
+        if not self._current_map:
             return
         tstart = time.time()
         canvas = self._canvas
-        mapset_get_tile = self._map.get_tile
-        tile_width = self._map.tile_width
-        tile_height = self._map.tile_height
+        mapset_get_tile = self._current_map.get_tile
+        tile_width = self._current_map.tile_width
+        tile_height = self._current_map.tile_height
         tile_start_x = int(
             (max(canvas.canvasx(0), 0) // tile_width) * tile_width)
         tile_start_y = int(

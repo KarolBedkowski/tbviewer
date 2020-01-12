@@ -146,8 +146,9 @@ class Map:
         self.map_data = self._load_map_meta()
         self.set_data = dict(self._load_set())
         self.tile_width, self.tile_height = self._find_tile_size()
-        _LOG.debug("map: %s %r %r %r", self.map_data, self.set_data,
-                   self.tile_width, self.tile_height)
+        _LOG.debug("map: deta=%s files=%r t-width=%r t-height=%r",
+                   self.map_data, len(self.set_data), self.tile_width,
+                   self.tile_height)
 
     def _find_fs(self, path):
         if os.path.isfile(path):
@@ -187,7 +188,6 @@ class Map:
             _LOG.error("wrong tile pos: %d, %d", x, y)
             return None
         data = self._fs.get_file_binary(name)
-        _LOG.debug('tile pos: %d, %d, size: %d', x, y, len(data))
         return ImageTk.PhotoImage(data=data)
 
     def _load_map_meta(self):
@@ -196,7 +196,7 @@ class Map:
         if not map_filename:
             return None
         map_conent = self._fs.get_file_content(map_filename).split('\r\n')
-        return parse_map(map_conent)
+        return _parse_map(map_conent)
 
     def _find_map_file(self):
         for name in self._fs.list(""):
@@ -256,8 +256,9 @@ class MapMeta(object):
         return self.width and self.height
 
     def add_mmpll(self, point_id, lon, lat):
-        if point_id != len(self._points) - 1:
-            _LOG.warn("point of out order")
+        if point_id != len(self._points) + 1:
+            _LOG.warn("point of out order: %r, %r, %r, %r",
+                      point_id, lon, lat, len(self._points))
         self._points.append((lon, lat))
 
     def calculate(self):
@@ -292,8 +293,8 @@ def _parse_mmpll(line):
     return point_id, lon, lat
 
 
-def parse_map(content):
-    """ Parse content of .map file """
+def _parse_map(content):
+    """Parse content of .map file."""
     content = [line.strip() for line in content]
     # OziExplorer Map Data File Version 2.2
     if content[0] != 'OziExplorer Map Data File Version 2.2':
@@ -316,7 +317,7 @@ def parse_map(content):
     return result
 
 
-def check_valid_atlas(tba_file):
+def _check_valid_atlas(tba_file):
     content = tba_file.read()
     if not content:
         return False
@@ -325,7 +326,7 @@ def check_valid_atlas(tba_file):
     return content.strip() == 'Atlas 1.0'
 
 
-def check_valid_map_file(map_file):
+def _check_valid_map_file(map_file):
     content = map_file.read()
     if not content:
         return False
@@ -339,199 +340,33 @@ def check_file_type(file_name):
 
     if file_name.endswith(".tba"):
         with open(file_name) as mfile:
-            if check_valid_atlas(mfile):
+            if _check_valid_atlas(mfile):
                 return 'atlas'
         return None
 
     if file_name.endswith(".map"):
         with open(file_name) as mfile:
-            if check_valid_map_file(mfile):
+            if _check_valid_map_file(mfile):
                 return 'map'
 
     if file_name.endswith(".tar"):
         with tarfile.open(file_name) as tfile:
             tar_content = tfile.getnames()
-            _LOG.debug("check_valid_map_file: tar_content: %s", tar_content)
             tba_files = [fname for fname in tar_content
                          if fname.endswith('.tba')]
             if tba_files:
                 with tfile.extractfile(tba_files[0]) as tbafile:
-                    if check_valid_atlas(tbafile):
+                    if _check_valid_atlas(tbafile):
                         return 'tar-atlas'
 
             map_files = [fname for fname in tar_content
                          if fname.endswith(".map")]
             if map_files:
                 with tfile.extractfile(map_files[0]) as map_file:
-                    if check_valid_map_file(map_file):
+                    if _check_valid_map_file(map_file):
                         return 'tar-map'
 
     return None
-
-
-class MapFile(object):
-    """ Map file - album or set. """
-    def __init__(self, name):
-        self.name = name
-        self.directory = os.path.dirname(name)
-        self._tarfile = tarfile.open(name, 'r')
-        self.files = self._tarfile.getnames()
-
-    def is_atlas(self):
-        mapfile = [fname for fname in self.files
-                   if fname.endswith('.tba')]
-        if mapfile and mapfile[0]:
-            with self._tarfile.extractfile(mapfile[0]) as mfile:
-                content = mfile.read()
-                return content and content.decode().strip() == 'Atlas 1.0'
-        return False
-
-    def get_sets(self):
-        files = [fname for fname in self.files if fname.endswith('.map')]
-        for fname in files:
-            _LOG.debug("MapFile.get_sets checking %s", fname)
-            fpath = _check_filename(self.directory, fname)
-            if fpath:
-                yield fname
-                _LOG.debug("MapFile.get_sets found %s", fname)
-                continue
-            lfname = os.path.splitext(fname)[0] + '.tar'
-            fpath = _check_filename(self.directory, lfname)
-            _LOG.debug("MapFile.get_sets checking %s (%s)", lfname, fpath)
-            if fpath:
-                yield fpath
-                _LOG.debug("MapFile.get_sets found %s", fname)
-                continue
-            # is any tar file there?
-            tardir = os.path.join(self.directory, os.path.dirname(fname))
-            tars = [fname for fname in os.listdir(tardir)
-                    if fname.endswith('.tar')]
-            if len(tars) == 1:
-                yield os.path.join(tardir, tars[0])
-                _LOG.debug("MapFile.get_sets found %s/%s", tardir, tars[0])
-                continue
-
-            _LOG.warn("MapFile.get_sets missing %s", fname)
-
-
-def _check_filename(dirname, filename):
-    fpath = os.path.join(dirname, filename)
-    if os.path.isfile(fpath):
-        return fpath
-    fpath = os.path.join(dirname, filename.lower())
-    if os.path.isfile(fpath):
-        return fpath
-    return None
-
-
-class MapSet(object):
-    def __init__(self, name):
-        _LOG.info("MapSet %r", name)
-        self.name = name
-        self.map_data = None
-        self._set_data = collections.defaultdict(dict)
-        self._load_data()
-        self.tile_width, self.tile_height = self._get_tile_size()
-
-    @property
-    def width(self):
-        """ Whole map width. """
-        return self.map_data.width
-
-    @property
-    def height(self):
-        """ Whole map height. """
-        return self.map_data.height
-
-    def _get_tile_size(self):
-        # get tile size - find minimal pos (x,y) > 0
-        if len(self._set_data) == 1:
-            width = self.map_data.width
-        else:
-            width = min(key for key in self._set_data.keys() if key > 0)
-        for row in self._set_data.values():
-            if len(row) == 1:
-                height = self.map_data.height
-            else:
-                height = min(key for key in row.keys() if key > 0)
-            return width, height
-
-    def _load_data(self):
-        _LOG.debug("MapSet._load_data %s", self.name)
-        if os.path.isdir(self.name):
-            map_file = [fname for fname in os.listdir(self.name)
-                        if fname.endswith('.map')
-                        and os.path.isfile(os.path.join(self.name, fname))]
-            if not map_file:
-                raise InvalidFileException(".map file not found")
-            self.name = os.path.join(self.name, map_file[0])
-
-        _LOG.debug("MapSet._load_data mapfile=%s", self.name)
-
-        if not os.path.isfile(self.name) or not self.name.endswith('.map'):
-            raise InvalidFileException("invalid file - should be .map")
-
-        with open(self.name) as mapfile:
-            self.map_data = parse_map(mapfile.readlines())
-
-        # find set files
-        set_data = self._set_data
-        setdirname = os.path.join(os.path.dirname(self.name), 'set')
-        for ifile in os.listdir(setdirname):
-            if ifile.endswith('.map') or ifile.endswith('.set') or \
-                    '_' not in ifile:
-                continue
-            name = os.path.splitext(ifile)[0]
-            names = name.split('_')
-            y = names[-2]
-            x = names[-1]
-            set_data[int(y)][int(x)] = os.path.join(setdirname, ifile)
-
-    def get_tile(self, x, y):
-        """ Get one tile from tar file. """
-        name = self._set_data[x][y]
-        return ImageTk.PhotoImage(file=name)
-
-
-class MapSetTarred(MapSet):
-    """ Single map. """
-    def __init__(self, name):
-        self._tarfile = None
-        MapSet.__init__(self, name)
-
-    def get_tile(self, x, y):
-        """ Get one tile from tar file. """
-        name = self._set_data[x][y]
-        with self._tarfile.extractfile(name) as ffile:
-            return ImageTk.PhotoImage(data=ffile.read())
-
-    def _load_data(self):
-        _LOG.debug("MapSetTarred._load_data %s", self.name)
-        self._tarfile = tarfile.open(self.name, 'r')
-        files = self._tarfile.getnames()
-        # find map in root
-        mapfile = [fname for fname in files
-                   if fname.endswith('.map')]
-        if not mapfile:
-            raise InvalidFileException('map file not found')
-        mapfile = mapfile[0]
-        _LOG.debug("MapSetTarred._load_data mapfile: %s", mapfile)
-        # load map
-        with self._tarfile.extractfile(mapfile) as mfile:
-            content = [line.decode('cp1250') for line in mfile.readlines()]
-            self.map_data = parse_map(content)
-
-        # find set files
-        set_data = self._set_data
-        for ifile in files:
-            if ifile.endswith('.map') or ifile.endswith('.set') or \
-                    '_' not in ifile:
-                continue
-            name = os.path.splitext(ifile)[0]
-            itms = name.split('_')
-            y = itms[-2]
-            x = itms[-1]
-            set_data[int(y)][int(x)] = ifile
 
 
 def _map_xy_lonlat(xy0, xy1, xy2, xy3, sx, sy, x, y):
