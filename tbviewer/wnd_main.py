@@ -41,7 +41,6 @@ class WndMain(tk.Tk):
         self._tb_atlas = None
         self._current_map = None
         self._tiles = {}
-        self._tb_maps = {}
         self._last_dir = "."
 
         self._tree = ttk.Treeview(self)
@@ -76,6 +75,8 @@ class WndMain(tk.Tk):
         self._canvas.bind("<B1-Motion>", self._scroll_move)
         self._canvas.bind('<Motion>', self._canvas_mouse_motion)
 
+        self.geometry("1024x768")
+
     def onExit(self):
         self.quit()
 
@@ -97,11 +98,8 @@ class WndMain(tk.Tk):
 
     def _load(self, fname):
         self._canvas.delete('img')
-        for iid in self._tb_maps.keys():
-            try:
-                self._tree.delete(iid)
-            finally:
-                pass
+        for iid in self._tree.get_children():
+            self._tree.delete(iid)
 
         if self._tb_atlas:
             self._tb_atlas.close()
@@ -110,7 +108,6 @@ class WndMain(tk.Tk):
             self._current_map.close()
             self._current_map = None
 
-        self._tb_maps = {}
         self._clear_tile_cache()
 
         file_type = map_loader.check_file_type(fname)
@@ -127,11 +124,21 @@ class WndMain(tk.Tk):
 
         idx = 0
         for layer, maps in self._tb_atlas.layers:
+            parent = self._tree.insert('', idx, text=layer, open=True)
+            idx += 1
+
             for map_name, map_path in maps:
                 _LOG.debug("tree ins: %s %s %s", layer, map_name, map_path)
-                iid = self._tree.insert('', idx, text=layer + ":" + map_name)
-                self._tb_maps[iid] = map_path
+                self._tree.insert(parent, idx, text=map_name, tags=map_path)
                 idx += 1
+
+        # select first map
+        tree_layers = self._tree.get_children()
+        if tree_layers:
+            tree_maps = self._tree.get_children(tree_layers[0])
+            if tree_maps:
+                self._tree.selection_set(tree_maps[0])
+                self._on_tree_click(None, item=tree_maps[0])
 
     def _load_map(self, filename):
         _LOG.info("_load_map %s", filename)
@@ -141,10 +148,11 @@ class WndMain(tk.Tk):
         self._clear_tile_cache()
         self._draw_tiles(True)
 
-    def _on_tree_click(self, event):
-        item = self._tree.identify('item', event.x, event.y)
-        if item:
-            self._load_map(self._tb_maps[item])
+    def _on_tree_click(self, event, item=None):
+        item = item or self._tree.identify('item', event.x, event.y)
+        map_path = self._tree.item(item, "tags")
+        if map_path and map_path[0]:
+            self._load_map(map_path[0])
 
     def _move_scroll_v(self, scroll, num, units=None):
         self._canvas.yview(scroll, num, units)
@@ -210,7 +218,8 @@ class WndMain(tk.Tk):
             if txty not in new_tile_list:
                 canvas.delete(iid)
         self._tiles = new_tile_list
-        _LOG.debug("_draw_tiles in %s", time.time() - tstart)
+        _LOG.debug("_draw_tiles %d in %s", len(new_tile_list),
+                   time.time() - tstart)
 
     def _clear_tile_cache(self):
         for (iid, _) in self._tiles.values():
