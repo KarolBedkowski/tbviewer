@@ -13,7 +13,6 @@ import logging
 
 from PIL import ImageTk
 
-
 __author__ = "Karol Będkowski"
 __copyright__ = "Copyright (c) Karol Będkowski, 2015-2020"
 
@@ -27,7 +26,6 @@ class InvalidFileException(RuntimeError):
 class TarredFS:
     def __init__(self, basefile):
         self._tar = tarfile.open(basefile)
-        self.basedir = os.path.dirname(basefile)
 
     def close(self):
         self._tar.close()
@@ -71,7 +69,6 @@ class TarredFS:
 class RealFS:
     def __init__(self, basepath):
         self._basepath = basepath
-        self.basedir = basepath
 
     def close(self):
         pass
@@ -110,8 +107,8 @@ class Atlas:
         elif path.endswith('.tar'):  # compressed fs
             self._fs = TarredFS(path)
 
-        self.layers = list(self._load_layers(self._fs.basedir))
-        self.layers.sort()
+        basedir = os.path.dirname(path)
+        self.layers = sorted(self._load_layers(basedir))
 
     def close(self):
         self._fs.close()
@@ -220,14 +217,17 @@ class Map:
             yield (x, y), os.path.join('set', name)
 
     def _find_tile_size(self):
-        tile_width = 8192
-        tile_height = 8192
+        tile_width = 9999999
+        tile_height = 9999999
         for (x, y) in self.set_data:
             if y == 0 and tile_width > x and x > 0:
                 tile_width = x
 
             if x == 0 and tile_height > y and y > 0:
                 tile_height = y
+
+        if tile_width == 9999999 or tile_height == 9999999:
+            raise InvalidFileException("Wrong set - missing files")
 
         return tile_width, tile_height
 
@@ -253,7 +253,7 @@ class MapMeta(object):
         ))
 
     def valid(self):
-        return self.width and self.height
+        return self.width and self.height and len(self._points) >= 4
 
     def add_mmpll(self, point_id, lon, lat):
         if point_id != len(self._points) + 1:
@@ -264,10 +264,10 @@ class MapMeta(object):
     def calculate(self):
         self.min_lon, self.min_lat = self._points[0]
         self.max_lon, self.max_lat = self._points[3]
-        self.lat_pix = (self._points[3][1] - self._points[0][1])\
-            / self.height
-        self.lon_pix = (self._points[1][0] - self._points[0][0])\
-            / self.width
+        dlat = self._points[3][1] - self._points[0][1]
+        self.lat_pix = dlat / self.height
+        dlon = self._points[1][0] - self._points[0][0]
+        self.lon_pix = dlon / self.width
 
     def xy2lonlat(self, x, y):
         """ Calculate lon & lat from position. """
@@ -281,15 +281,17 @@ class MapMeta(object):
 def _parse_mmpll(line):
     fields = line.split(',')
     if len(fields) != 4:
-        raise InvalidFileException("Wrong number of fields in MMPLL field %r"
-                                   % line)
+        raise InvalidFileException(
+            "Wrong .map file - wrong number of fields in MMPLL field %r"
+            % line)
     _, point_id, lon, lat = [field.strip() for field in fields]
     try:
         point_id = int(point_id)
         lon = float(lon)
         lat = float(lat)
     except ValueError as err:
-        raise InvalidFileException("Wrong MMPLL field %r; %s" % (line, err))
+        raise InvalidFileException(
+            "Wrong .map file - wrong MMPLL field %r; %s" % (line, err))
     return point_id, lon, lat
 
 
@@ -298,7 +300,8 @@ def _parse_map(content):
     content = [line.strip() for line in content]
     # OziExplorer Map Data File Version 2.2
     if content[0] != 'OziExplorer Map Data File Version 2.2':
-        raise InvalidFileException("Wrong header %r" % content[0])
+        raise InvalidFileException(
+            "Wrong .map file - wrong header %r" % content[0])
 
     result = MapMeta()
     result.filename = os.path.splitext(content[1])[0]
@@ -311,7 +314,7 @@ def _parse_map(content):
             result.add_mmpll(point_id, lon, lat)
 
     if not result.valid():
-        raise InvalidFileException("missing width/height")
+        raise InvalidFileException("Wrong .map file - missing width/height")
 
     result.calculate()
     return result

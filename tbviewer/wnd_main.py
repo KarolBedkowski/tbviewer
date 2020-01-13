@@ -18,6 +18,7 @@ import tkinter as tk
 from tkinter import filedialog
 from tkinter import messagebox
 from tkinter import ttk
+from tkinter import tix
 
 from . import map_loader
 
@@ -90,8 +91,10 @@ class WndMain(tk.Tk):
         menubar.add_cascade(label="File", menu=file_menu)
 
     def _open_file(self):
-        dlg = filedialog.FileDialog(self)
-        fname = dlg.go(self._last_dir, "*.*")
+        fname = filedialog.askopenfilename(parent=self,
+            filetypes=[("Supported files", ".tba .tar .map"),
+                       ("All files", "*.*")],
+            initialdir=self._last_dir)
         if fname:
             self._load(fname)
             self._last_dir = os.path.dirname(fname)
@@ -142,9 +145,18 @@ class WndMain(tk.Tk):
 
     def _load_map(self, filename):
         _LOG.info("_load_map %s", filename)
-        self._current_map = map_loader.Map(filename)
-        self._canvas.config(scrollregion=(0, 0, self._current_map.width,
-                                          self._current_map.height))
+        if self._current_map:
+            self._current_map = None
+
+        try:
+            self._current_map = map_loader.Map(filename)
+            self._canvas.config(scrollregion=(0, 0, self._current_map.width,
+                                              self._current_map.height))
+        except map_loader.InvalidFileException as err:
+            messagebox.showerror(
+                "Error loading file",
+                "Invalid file: {}".format(err))
+
         self._clear_tile_cache()
         self._draw_tiles(True)
 
