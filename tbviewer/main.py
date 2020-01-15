@@ -59,3 +59,29 @@ def run():
 
     window = wnd_main.WndMain(fname)
     window.mainloop()
+
+
+def run_calibrate():
+    """ Run application. """
+    # parse options
+    options, args = _parse_opt()
+
+    # logowanie
+    from .logging_setup import logging_setup
+    logdir = tempfile.mkdtemp("_log_" + str(int(time.time())), "tbviewer_")
+    logging_setup(os.path.join(logdir, "tbviewer.log"), options.debug)
+
+    if options.shell:
+        # starting interactive shell
+        from IPython.terminal import ipapp
+        app = ipapp.TerminalIPythonApp.instance()
+        app.initialize(argv=[])
+        app.start()
+        return
+
+    from . import wnd_calibrate
+
+    fname = args[0] if args and args[0] else None
+
+    window = wnd_calibrate.WndCalibrate(fname)
+    window.mainloop()
