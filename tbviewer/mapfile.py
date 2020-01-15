@@ -17,6 +17,10 @@ import math
 _LOG = logging.getLogger(__name__)
 
 
+class InvalidFileException(RuntimeError):
+    pass
+
+
 class Point:
     def __init__(self, x, y, lat, lon):
         self.idx = None
@@ -40,6 +44,9 @@ def degree2minsec(d, lz='S', gz='N'):
 
 class MapFile():
     def __init__(self):
+        self.clear()
+
+    def clear(self):
         self.filename = None
         self.filepath = None
         self.projection = None
@@ -58,9 +65,10 @@ class MapFile():
             if k[0] != '_'
         ))
 
-    def parse_map(content):
+    def parse_map(self, content):
         """Parse content of .map file."""
-        content = [line.strip() for line in content]
+        self.clear()
+        content = [line.strip() for line in content.split("\n")]
         if content[0] != 'OziExplorer Map Data File Version 2.2':
             raise InvalidFileException(
                 "Wrong .map file - wrong header %r" % content[0])
@@ -75,7 +83,9 @@ class MapFile():
 
         for line in content[9:]:
             if line.startswith("Point"):
-                self.points.append(_parse_point(line))
+                point = _parse_point(line)
+                if point:
+                    self.points.append(point)
             elif line.startswith('IWH,Map Image Width/Height,'):
                 self.image_width, self.image_height = \
                     map(int, line[27:].split(','))
@@ -87,7 +97,8 @@ class MapFile():
             elif line.startswith('MMPXY'):
                 point_id, x, y = _parse_mmpxy(line)
                 if point_id - 1 != len(self.mmpxy):
-                    raise Error()
+                    _LOG.warn("parse mmpxy error: %r", line)
+                    raise InvalidFileException()
                 self.mmpxy.append((x, y))
 
     def to_str(self):
@@ -134,15 +145,16 @@ class MapFile():
 
 def _parse_point(line):
     fields = line.split(',')
-    point = Point()
+    if fields[2].strip() == "":
+        return None
+    point = Point(
+        int(fields[2]), int(fields[3]),
+        int(fields[6]) + float(fields[7]) / 60.,
+        int(fields[9]) + float(fields[10]) / 60.)
     point.idx = int(fields[0][6:])
-    point.x = int(field[2])
-    point.y = int(field[3])
-    point.lat = int(field[6]) + float(field[7]) / 60.
-    if field[8] == 'E':
+    if fields[8] == 'E':
         point.lat *= -1
-    point.lon = int(field[9]) + float(field[10]) / 60.
-    if field[11] == 'S':
+    if fields[11] == 'S':
         point.lon *= -1
     return point
 
@@ -161,7 +173,7 @@ def _parse_mmpxy(line):
     except ValueError as err:
         raise InvalidFileException(
             "Wrong .map file - wrong MMPXY field %r; %s" % (line, err))
-    return point_id, lon, lat
+    return point_id, x, y
 
 
 def _parse_mmpll(line):
@@ -179,7 +191,6 @@ def _parse_mmpll(line):
         raise InvalidFileException(
             "Wrong .map file - wrong MMPLL field %r; %s" % (line, err))
     return point_id, lon, lat
-
 
 
 def sort_points(positions, width, height):
@@ -222,7 +233,6 @@ def calibrate_calculate(positions, width, height):
     ]
 
 
-
 def prettydict(d):
     return "\n".join(
         str(key) + "=" + repr(val)
@@ -231,8 +241,8 @@ def prettydict(d):
 
 
 _MAP_POINT_TEMPLATE = \
-    "Point{idx},xy,{x:>5},{y:>5},in, deg,{lat_m:>4},{lat_s:>8},{lat_d},"\
-    "{lon_m:>4},{lon_s:>8},{lon_d}, grid,   ,           ,           ,N"
+    "Point{idx},xy,{x:>5},{y:>5},in, deg,{lat_m:>4},{lat_s:3.7f},{lat_d},"\
+    "{lon_m:>4},{lon_s:3.7f},{lon_d}, grid,   ,           ,           ,N"
 
 _MAP_MMPXY_TEMPLATE = "MMPXY,{idx},{x},{y}"
 _MAP_MMPLL_TEMPLATE = "MMPLL,{idx},{lat:>11},{lon:>11}"

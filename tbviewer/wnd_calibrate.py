@@ -102,6 +102,7 @@ class WndCalibrate(tk.Tk):
         self._sel_point.set(0)
         self._positions_data = [FormPosition(self) for _ in range(4)]
         self._click_pos = None
+        self._img = None
         self._map_file = mapfile.MapFile()
 
         master = tk.Frame(self)
@@ -179,14 +180,19 @@ class WndCalibrate(tk.Tk):
         menubar = tk.Menu(self)
         self.config(menu=menubar)
         file_menu = tk.Menu(menubar, tearoff=False)
-        file_menu.add_command(label="Open", command=self._open_file)
+        file_menu.add_command(label="Open image...", command=self._open_file)
+        file_menu.add_command(label="Open map file...",
+                              command=self._open_map_file)
+        file_menu.add_command(label="Save map file...",
+                              command=self._save_map_file)
         file_menu.add_command(label="Calibrate", command=self._calibrate)
         file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self.onExit)
         menubar.add_cascade(label="File", menu=file_menu)
 
     def _open_file(self):
-        fname = filedialog.askopenfilename(parent=self,
+        fname = filedialog.askopenfilename(
+            parent=self,
             filetypes=[("Supported files", ".jpg .jpeg .png"),
                        ("All files", "*.*")],
             initialdir=self._last_dir)
@@ -206,6 +212,41 @@ class WndCalibrate(tk.Tk):
             scrollregion=(0, 0, img.width() + 40, img.height() + 40))
         self.update_idletasks()
 
+    def _open_map_file(self):
+        fname = filedialog.askopenfilename(
+            parent=self,
+            filetypes=[("Map file", ".map"),
+                       ("All files", "*.*")],
+            initialdir=self._last_dir)
+        if fname:
+            self._load_map(fname)
+            self._last_dir = os.path.dirname(fname)
+
+    def _load_map(self, fname):
+        with open(fname) as f:
+            content = f.read()
+            self._map_file.parse_map(content)
+        _LOG.debug(self._map_file.to_str())
+        for idx, p in enumerate(self._map_file.points[:4]):
+            pdata = self._positions_data[idx]
+            pdata.set_lat(p.lat)
+            pdata.set_lon(p.lon)
+            pdata.x = p.x
+            pdata.y = p.y
+        self._draw_tiles()
+
+    def _save_map_file(self):
+        if not self._map_file.validate():
+            return
+        fname = filedialog.asksaveasfilename(
+            parent=self,
+            filetypes=[("Map file", ".map"),
+                       ("All files", "*.*")],
+            initialdir=self._last_dir)
+        if fname:
+            content = self._map_file.to_str()
+            with open(fname, 'w') as f:
+                f.write(content)
 
     def _move_scroll_v(self, scroll, num, units=None):
         self._canvas.yview(scroll, num, units)
@@ -239,6 +280,9 @@ class WndCalibrate(tk.Tk):
         self._draw_tiles()
 
     def _canvas_mouse_motion(self, event):
+        if not self._img:
+            return
+
         x = self._canvas.canvasx(event.x)
         y = self._canvas.canvasy(event.y)
         info = ""
