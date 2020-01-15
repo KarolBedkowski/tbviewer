@@ -22,52 +22,23 @@ from tkinter import tix
 
 from PIL import ImageTk
 
+from . import mapfile
+
 __author__ = "Karol Będkowski"
 __copyright__ = "Copyright (c) Karol Będkowski, 2015-2020"
 
 _LOG = logging.getLogger(__name__)
 
 
-class FakePosition:
-    def __init__(self, x, y, lat, lon):
-        self.lat_m = float(int(lat))
-        self.lat_s = (lat - self.lat_m) * 60.0
-        self.lat_d = 'E'
-        self.lon_m = float(int(lon))
-        self.lon_s = (lon - self.lon_m) * 60.0
-        self.lon_d = 'N'
-        self.x = x
-        self.y = y
 
-    def __str__(self):
-        return "<FakePosition {}>".format(", ".join(
-            "{}={:}".format(k, repr(v))
-            for k, v in self.__dict__.items()
-            if k[0] != '_'
-        ))
-
-    def __repr__(self):
-        return str(self)
-
-    @property
-    def lon(self):
-        return (self.lon_m + self.lon_s / 60.0) * \
-            (-1 if self.lon_d == 'S' else 1)
-
-    @property
-    def lat(self):
-        return (self.lat_m + self.lat_s / 60.0) * \
-            (-1 if self.lat_d == 'W' else 1)
-
-
-class Position:
+class FormPosition:
     def __init__(self, parent):
-        self.lat_m_v = tk.StringVar()
-        self.lat_s_v = tk.StringVar()
+        self.lat_m_v = tk.IntVar()
+        self.lat_s_v = tk.DoubleVar()
         self.lat_d_v = tk.StringVar()
         self.lat_d_v.set('E')
-        self.lon_m_v = tk.StringVar()
-        self.lon_s_v = tk.StringVar()
+        self.lon_m_v = tk.IntVar()
+        self.lon_s_v = tk.DoubleVar()
         self.lon_d_v = tk.StringVar()
         self.lon_d_v.set('N')
         self.x = None
@@ -87,40 +58,33 @@ class Position:
     def __repr__(self):
         return str(self)
 
-    @property
-    def lat_m(self):
-        return float(self.lat_m_v.get() or '0')
+    def set_lat(self, lat):
+        self.lat_d_v.set('E')
+        if lat < 0:
+            lat *= 1
+            self.lat_d_v.set('W')
+        self.lat_m_v.set(int(lat))
+        self.lat_s_v.set((lat - int(lat)) * 60.0)
 
-    @property
-    def lat_s(self):
-        return float(self.lat_s_v.get() or '0')
-
-    @property
-    def lat_d(self):
-        return self.lat_d_v.get()
-
-    @property
-    def lon_m(self):
-        return float(self.lon_m_v.get() or '0')
-
-    @property
-    def lon_s(self):
-        return float(self.lon_s_v.get() or '0')
-
-    @property
-    def lon_d(self):
-        return self.lon_d_v.get()
-
+    def set_lon(self, lon):
+        self.lon_d_v.set('N')
+        if lon < 0:
+            lon *= 1
+            self.lon_d_v.set('S')
+        self.lon_m_v.set(int(lon))
+        self.lon_s_v.set((lon - int(lon)) * 60.0)
 
     @property
     def lon(self):
-        return (self.lon_m + self.lon_s / 60.0) * \
-            (-1 if self.lon_d == 'S' else 1)
+        return (int(self.lon_m_v.get()) +
+                float(self.lon_s_v.get()) / 60.0) * \
+            (-1 if self.lon_d_v.get() == 'S' else 1)
 
     @property
     def lat(self):
-        return (self.lat_m + self.lat_s / 60.0) * \
-            (-1 if self.lat_d == 'W' else 1)
+        return (int(self.lat_m_v.get()) +
+                float(self.lat_s_v.get()) / 60.0) * \
+            (-1 if self.lat_d_v.get() == 'W' else 1)
 
 
 class WndCalibrate(tk.Tk):
@@ -136,9 +100,9 @@ class WndCalibrate(tk.Tk):
         self._last_dir = ""
         self._sel_point = tk.IntVar()
         self._sel_point.set(0)
-        self._positions_data = [Position(self) for _ in range(4)]
+        self._positions_data = [FormPosition(self) for _ in range(4)]
         self._click_pos = None
-        self._cal_points = None
+        self._map_file = mapfile.MapFile()
 
         master = tk.Frame(self)
         master.grid(column=0, row=0, sticky=tk.NSEW)
@@ -278,7 +242,7 @@ class WndCalibrate(tk.Tk):
         x = self._canvas.canvasx(event.x)
         y = self._canvas.canvasy(event.y)
         info = ""
-        if self._cal_points:
+        if self._map_file.mmpll:
             pos = self.xy2lonlat(x, y)
             info = _format_degree(pos[0]) + " " + _format_degree(pos[1], False)
         self._status.config(text="x={}  y={}; {}".format(x, y, info))
@@ -322,121 +286,36 @@ class WndCalibrate(tk.Tk):
         if not self._img:
             return
 
-        map_file = MapFile()
-        map_file.set_image_size(self._img.width(), self._img.height())
-        map_file.calculate(self._positions_data)
-        _LOG.debug(str(map_file.format_str()))
-        self._cal_points = map_file.corners
-        _LOG.debug(repr(self._cal_points))
+        self._map_file.image_width = self._img.width()
+        self._map_file.image_height = self._img.height()
+        points = [(p.x, p.y, p.lat, p.lon) for p in self._positions_data]
+        self._map_file.set_points(points)
+        self._map_file.calibrate()
+        _LOG.debug(str(self._map_file.to_str()))
 
     def xy2lonlat(self, x, y):
         """ Calculate lon & lat from position. """
+        cal_points = self._map_file.mmpll
         return _map_xy_lonlat(
-            self._cal_points[0][2:], self._cal_points[1][2:],
-            self._cal_points[2][2:], self._cal_points[3][2:],
+            cal_points[0], cal_points[1],
+            cal_points[2], cal_points[3],
             self._img.width(), self._img.height(),
             x, y)
 
     def _test_calc(self):
         pos = [
-            FakePosition(224, 526, 18.0 + 48/60., 49.0 + 48/60.),
-            FakePosition(5136, 526, 19.0 + 14/60., 49.0 + 48/60.),
-            FakePosition(5158, 7527, 19.0 + 14/60., 49.0 + 24/60.),
-            FakePosition(1730, 7529, 18.0 + 56/60., 49.0 + 24/60.),
+            (224, 526, 18.0 + 48/60., 49.0 + 48/60.),
+            (5136, 526, 19.0 + 14/60., 49.0 + 48/60.),
+            (5158, 7527, 19.0 + 14/60., 49.0 + 24/60.),
+            (1730, 7529, 18.0 + 56/60., 49.0 + 24/60.),
         ]
+        for i, p in enumerate(pos):
+            pd = self._positions_data[i]
+            pd.x, pd.y = p[0], p[1]
+            pd.set_lat(p[2])
+            pd.set_lon(p[3])
+        self._calibrate()
 
-        self._cal_points = calculate(pos, 5357, 7685)
-        _LOG.debug(repr(self._cal_points))
-
-
-_MAP_POINT_TEMPLATE = \
-    "Point{idx},xy,{x:>5},{y:>5},in, deg,{lat_m:>4},{lat_s:>8},{lat_d},"\
-    "{lon_m:>4},{lon_s:>8},{lon_d}, grid,   ,           ,           ,N"
-
-_MAP_MMPXY_TEMPLATE = "MMPXY,{idx},{x},{y}"
-_MAP_MMPLL_TEMPLATE = "MMPLL,{idx},{lat:>11},{lon:>11}"
-
-_MAP_TEMPALTE = """OziExplorer Map Data File Version 2.2
-{filename}
-{filepath}
-1 ,Map Code,
-WGS 84,WGS 84,   0.0000,   0.0000,WGS 84
-Reserved 1
-Reserved 2
-Magnetic Variation,,,E
-Map Projection,Latitude/Longitude,PolyCal,No,AutoCalOnly,No,BSBUseWPX,No
-{points}
-Projection Setup,,,,,,,,,,
-Map Feature = MF ; Map Comment = MC     These follow if they exist
-Track File = TF      These follow if they exist
-Moving Map Parameters = MM?    These follow if they exist
-MM0,Yes
-MMPNUM,{mmplen}
-{mmpxy}
-{mmpll}
-MM1B,4.450529
-MOP,Map Open Position,0,0
-IWH,Map Image Width/Height,{image_width},{image_height}
-"""
-
-
-class MapFile:
-    def __init__(self):
-        self.image_width = 0
-        self.image_height = 0
-        self.markers = []
-        self.corners = []
-
-    def __str__(self):
-        return "<MapFile: points={}, image_width={}, image_height={}".format(
-            self.markers, self.image_width, self.image_height
-        )
-
-    def set_image_size(self, width, height):
-        self.image_width = width
-        self.image_height = height
-
-    def calculate(self, points):
-        self.markers= points
-        self.corners = calculate(self.markers, self.image_width,
-                                 self.image_height)
-        _LOG.debug("corners: %r", self.corners)
-
-    def format_str(self):
-        points = [_MAP_POINT_TEMPLATE.format(
-            idx=idx, x=int(p.x), y=int(p.y),
-            lat_m=int(p.lat_m), lat_s=p.lat_s, lat_d=p.lat_d,
-            lon_m=int(p.lon_m), lon_s=p.lon_s, lon_d=p.lon_d)
-            for idx, p in enumerate(self.markers)
-        ]
-        mmpxy = [_MAP_MMPXY_TEMPLATE.format(idx=idx+1, x=x, y=y)
-                 for idx, (x, y, _, _) in enumerate(self.corners)]
-        mmpll = [_MAP_MMPLL_TEMPLATE.format(idx=idx+1, lat=lat, lon=lon)
-                 for idx, (_, _, lat, lon) in enumerate(self.corners)]
-        return _MAP_TEMPALTE.format(
-            filename="dummy.jpg",
-            filepath="dummy.jpg",
-            points="\n".join(points),
-            mmplen=0,
-            mmpxy="\n".join(mmpxy),
-            mmpll="\n".join(mmpll),
-            image_width=self.image_width, image_height=self.image_height
-        )
-
-
-
-def sort_points(positions, width, height):
-    def dist_from(pos, x0, y0):
-        return math.sqrt((pos.x - x0) ** 2 + (pos.y - y0) ** 2)
-
-    positions = sorted(positions, key=lambda x: dist_from(x, 0, 0))
-    nw, positions = positions[0], positions[1:]
-    positions = sorted(positions, key=lambda x: dist_from(x, width, 0))
-    ne, positions = positions[0], positions[1:]
-    positions = sorted(positions, key=lambda x: dist_from(x, 0, height))
-    sw, se = positions
-    _LOG.debug(repr(locals()))
-    return (nw, ne, se, sw)
 
 
 def prettydict(d):
@@ -444,30 +323,6 @@ def prettydict(d):
         str(key) + "=" + repr(val)
         for key, val in sorted(d.items())
     )
-
-def calculate(positions, width, height):
-    poss = sort_points(positions, width, height)
-    p0, p1, p2, p3 = poss
-
-    # west/east
-    dlat = p0.lat - p2.lat
-    dx = p0.x - p2.x
-    w_lat = p0.lat - (dlat / dx) * p0.x
-    e_lat = w_lat + (dlat / dx) * width
-
-    # north / south
-    dlon = p0.lon - p2.lon
-    dy = p0.y - p2.y
-    n_lon = p0.lon - (dlon / dy) * p0.y
-    s_lon = n_lon + (dlon / dy) * height
-    _LOG.debug(prettydict(locals()))
-
-    return [
-        (0, 0, w_lat, n_lon),
-        (width, 0, e_lat, n_lon),
-        (width, height, e_lat, s_lon),
-        (0, height, w_lat, s_lon)
-    ]
 
 
 def _format_degree(degree, latitude=True, short=True):
