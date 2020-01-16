@@ -13,6 +13,8 @@ import logging
 
 from PIL import ImageTk
 
+from . import mapfile
+
 __author__ = "Karol Będkowski"
 __copyright__ = "Copyright (c) Karol Będkowski, 2015-2020"
 
@@ -31,9 +33,11 @@ class TarredFS:
         self._tar.close()
 
     def get_file_content(self, path):
+        path = path.replace('\\', '/')
         return self.get_file_binary(path).decode('cp1250')
 
     def get_file_binary(self, path):
+        path = path.replace('\\', '/')
         with self._tar.extractfile(path) as f:
             return f.read()
 
@@ -52,6 +56,7 @@ class TarredFS:
                 yield member.name[len(path):].lstrip('/')
 
     def _listdir(self, path):
+        path = path.replace('\\', '/')
         if path and path[0] == '/':
             path = path[1:]
         if path and path[-1] != '/':
@@ -171,18 +176,19 @@ class Map:
     @property
     def width(self):
         """Whole map width."""
-        return self.map_data.width
+        return self.map_data.image_width
 
     @property
     def height(self):
         """Whole map height."""
-        return self.map_data.height
+        return self.map_data.image_height
 
     def get_tile(self, x, y):
         """Get one tile from tar file."""
         name = self.set_data.get((x, y))
         if not name:
-            _LOG.error("wrong tile pos: %d, %d", x, y)
+            if x < self.width and y < self.height:
+                _LOG.error("wrong tile pos: %d, %d", x, y)
             return None
         data = self._fs.get_file_binary(name)
         return ImageTk.PhotoImage(data=data)
@@ -192,8 +198,10 @@ class Map:
         map_filename = self._find_map_file()
         if not map_filename:
             return None
-        map_conent = self._fs.get_file_content(map_filename).split('\r\n')
-        return _parse_map(map_conent)
+        map_conent = self._fs.get_file_content(map_filename)
+        map_file = mapfile.MapFile()
+        map_file.parse_map(map_conent)
+        return map_file
 
     def _find_map_file(self):
         for name in self._fs.list(""):
@@ -230,94 +238,6 @@ class Map:
             raise InvalidFileException("Wrong set - missing files")
 
         return tile_width, tile_height
-
-
-class MapMeta(object):
-    """docstring for MapMeta"""
-    def __init__(self):
-        super(MapMeta, self).__init__()
-        self.width = 0
-        self.height = 0
-        self.filename = None
-        self._points = []
-        self.lat_pix = 0
-        self.lon_pix = 0
-        self.min_lat = 0
-        self.min_lon = 0
-
-    def __str__(self):
-        return "<MapMeta {}>".format(", ".join(
-            "{}={}".format(k, v)
-            for k, v in self.__dict__.items()
-            if k[0] != '_'
-        ))
-
-    def valid(self):
-        return self.width and self.height and len(self._points) >= 4
-
-    def add_mmpll(self, point_id, lon, lat):
-        if point_id != len(self._points) + 1:
-            _LOG.warn("point of out order: %r, %r, %r, %r",
-                      point_id, lon, lat, len(self._points))
-        self._points.append((lon, lat))
-
-    def calculate(self):
-        self.min_lon, self.min_lat = self._points[0]
-        self.max_lon, self.max_lat = self._points[3]
-        dlat = self._points[3][1] - self._points[0][1]
-        self.lat_pix = dlat / self.height
-        dlon = self._points[1][0] - self._points[0][0]
-        self.lon_pix = dlon / self.width
-
-    def xy2lonlat(self, x, y):
-        """ Calculate lon & lat from position. """
-        return _map_xy_lonlat(
-            self._points[0], self._points[1],
-            self._points[2], self._points[3],
-            self.width, self.height,
-            x, y)
-
-
-def _parse_mmpll(line):
-    fields = line.split(',')
-    if len(fields) != 4:
-        raise InvalidFileException(
-            "Wrong .map file - wrong number of fields in MMPLL field %r"
-            % line)
-    _, point_id, lon, lat = [field.strip() for field in fields]
-    try:
-        point_id = int(point_id)
-        lon = float(lon)
-        lat = float(lat)
-    except ValueError as err:
-        raise InvalidFileException(
-            "Wrong .map file - wrong MMPLL field %r; %s" % (line, err))
-    return point_id, lon, lat
-
-
-def _parse_map(content):
-    """Parse content of .map file."""
-    content = [line.strip() for line in content]
-    # OziExplorer Map Data File Version 2.2
-    if content[0] != 'OziExplorer Map Data File Version 2.2':
-        raise InvalidFileException(
-            "Wrong .map file - wrong header %r" % content[0])
-
-    result = MapMeta()
-    result.filename = os.path.splitext(content[1])[0]
-    for line in content[2:]:
-        if line.startswith('IWH,Map Image Width/Height,'):
-            result.width, result.height = map(int, line[27:].split(','))
-            continue
-        if line.startswith('MMPLL'):
-            point_id, lon, lat = _parse_mmpll(line)
-            result.add_mmpll(point_id, lon, lat)
-
-    if not result.valid():
-        raise InvalidFileException("Wrong .map file - missing width/height")
-
-    result.calculate()
-    return result
 
 
 def _check_valid_atlas(tba_file):
@@ -370,32 +290,3 @@ def check_file_type(file_name):
                         return 'tar-map'
 
     return None
-
-
-def _map_xy_lonlat(xy0, xy1, xy2, xy3, sx, sy, x, y):
-    x0, y0 = xy0
-    x1, y1 = xy1
-    x2, y2 = xy2
-    x3, y3 = xy3
-
-    syy = sy - y
-    sxx = sx - x
-
-    return _intersect_lines(
-        (syy * x0 + y * x3) / sy, (syy * y0 + y * y3) / sy,
-        (syy * x1 + y * x2) / sy, (syy * y1 + y * y2) / sy,
-        (sxx * x0 + x * x1) / sx, (sxx * y0 + x * y1) / sx,
-        (sxx * x3 + x * x2) / sx, (sxx * y3 + x * y2) / sx)
-
-
-def _det(a, b, c, d):
-    return a * d - b * c
-
-
-def _intersect_lines(x1, y1, x2, y2, x3, y3, x4, y4):
-    d = _det(x1 - x2, y1 - y2, x3 - x4, y3 - y4) or 1
-    d1 = _det(x1, y1, x2, y2)
-    d2 = _det(x3, y3, x4, y4)
-    px = _det(d1, x1 - x2, d2, x3 - x4) / d
-    py = _det(d1, y1 - y2, d2, y3 - y4) / d
-    return px, py

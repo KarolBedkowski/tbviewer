@@ -82,9 +82,7 @@ class WndMain(tk.Tk):
         self._canvas.bind('<Motion>', self._canvas_mouse_motion)
 
         self.geometry("1024x768")
-
-    def onExit(self):
-        self.quit()
+        self.lift()
 
     def _build_menu(self):
         menubar = tk.Menu(self)
@@ -92,17 +90,19 @@ class WndMain(tk.Tk):
         file_menu = tk.Menu(menubar, tearoff=False)
         file_menu.add_command(label="Open", command=self._open_file)
         file_menu.add_separator()
-        file_menu.add_command(label="Exit", command=self.onExit)
+        file_menu.add_command(label="Exit", command=self.quit)
         menubar.add_cascade(label="File", menu=file_menu)
 
     def _open_file(self):
-        fname = filedialog.askopenfilename(parent=self,
+        fname = filedialog.askopenfilename(
+            parent=self,
             filetypes=[("Supported files", ".tba .tar .map"),
                        ("All files", "*.*")],
             initialdir=self._last_dir)
         if fname:
             self._load(fname)
             self._last_dir = os.path.dirname(fname)
+        self.focus_set()
 
     def _load(self, fname):
         self._canvas.delete('img')
@@ -194,14 +194,13 @@ class WndMain(tk.Tk):
             return
         x = self._canvas.canvasx(event.x)
         y = self._canvas.canvasy(event.y)
-        lon, lat = self._map_image.map_data.xy2lonlat(x, y)
+        lat, lon = self._map_image.map_data.xy2latlon(x, y)
         self._status.config(text=format_pos_latlon(lat, lon))
         self._status.update_idletasks()
 
     def _draw_tiles(self, clear=False):
         if not self._map_image:
             return
-        tstart = time.time()
         canvas = self._canvas
         mapset_get_tile = self._map_image.get_tile
         tile_width = self._map_image.tile_width
@@ -234,19 +233,8 @@ class WndMain(tk.Tk):
             if txty not in new_tile_list:
                 canvas.delete(iid)
         self._tiles = new_tile_list
-        _LOG.debug("_draw_tiles %d in %s", len(new_tile_list),
-                   time.time() - tstart)
 
     def _clear_tile_cache(self):
         for (iid, _) in self._tiles.values():
             self._canvas.delete(iid)
-        self._tiles = {}
-
-
-def _format_degree(degree, latitude=True):
-    lit = ["NS", "EW"][0 if latitude else 1][0 if degree > 0 else 1]
-    degree = abs(degree)
-    mint, stop = math.modf(degree)
-    sec, mint = math.modf(mint * 60)
-    return "%d %d' %s'' %s" % (stop, mint,
-                               locale.format('%0.2f', sec * 60), lit)
+        self._tiles.clear()

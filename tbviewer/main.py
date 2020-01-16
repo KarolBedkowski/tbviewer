@@ -17,10 +17,9 @@ import tempfile
 import time
 import os
 
-_LOG = logging.getLogger(__name__)
-
-
 from . import version
+
+_LOG = logging.getLogger(__name__)
 
 
 def _parse_opt():
