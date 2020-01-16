@@ -21,6 +21,7 @@ from tkinter import ttk
 from tkinter import tix
 
 from . import map_loader
+from .formatting import format_pos_latlon
 
 
 __author__ = "Karol Będkowski"
@@ -40,32 +41,36 @@ class WndMain(tk.Tk):
         self.title("TBViewer")
 
         self._tb_atlas = None
-        self._current_map = None
+        self._map_image = None
         self._tiles = {}
         self._last_dir = "."
+
+        self.grid_columnconfigure(2, weight=1)
+        self.grid_rowconfigure(0, weight=1)
 
         self._tree = ttk.Treeview(self)
         self._tree.grid(column=0, row=0, sticky=tk.NSEW)
         ttk.Separator(self, orient=tk.VERTICAL).grid(row=0, column=1,
                                                      sticky=tk.NS)
 
-        self._scrollbar_h = h = ttk.Scrollbar(self, orient=tk.HORIZONTAL)
-        self._scrollbar_v = v = ttk.Scrollbar(self, orient=tk.VERTICAL)
-        self._canvas = tk.Canvas(self, scrollregion=(0, 0, 1000, 1000),
-                                 yscrollcommand=v.set, xscrollcommand=h.set)
+        h = ttk.Scrollbar(self, orient=tk.HORIZONTAL)
         h['command'] = self._move_scroll_h
-        v['command'] = self._move_scroll_v
-        ttk.Sizegrip(self).grid(column=3, row=2, sticky=tk.SE)
-
-        self._canvas.grid(column=2, row=0, sticky=tk.NSEW)
         h.grid(column=2, row=1, sticky=tk.EW)
+
+        v = ttk.Scrollbar(self, orient=tk.VERTICAL)
+        v['command'] = self._move_scroll_v
         v.grid(column=3, row=0, sticky=tk.NS)
-        self.grid_columnconfigure(2, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+
+        self._canvas = tk.Canvas(self, scrollregion=(0, 0, 1000, 1000),
+                                 yscrollcommand=v.set, xscrollcommand=h.set,
+                                 relief=tk.SUNKEN)
+        self._canvas.grid(column=2, row=0, sticky=tk.NSEW)
 
         self._status = tk.Label(self, text="", bd=1, relief=tk.SUNKEN,
                                 anchor=tk.W)
         self._status.grid(column=0, row=2, columnspan=3, sticky=tk.EW)
+
+        ttk.Sizegrip(self).grid(column=3, row=2, sticky=tk.SE)
 
         if fname:
             self._load(fname)
@@ -107,9 +112,9 @@ class WndMain(tk.Tk):
         if self._tb_atlas:
             self._tb_atlas.close()
             self._tb_atlas = None
-        if self._current_map:
-            self._current_map.close()
-            self._current_map = None
+        if self._map_image:
+            self._map_image.close()
+            self._map_image = None
 
         self._clear_tile_cache()
 
@@ -145,13 +150,13 @@ class WndMain(tk.Tk):
 
     def _load_map(self, filename):
         _LOG.info("_load_map %s", filename)
-        if self._current_map:
-            self._current_map = None
+        if self._map_image:
+            self._map_image = None
 
         try:
-            self._current_map = map_loader.Map(filename)
-            self._canvas.config(scrollregion=(0, 0, self._current_map.width,
-                                              self._current_map.height))
+            self._map_image = map_loader.Map(filename)
+            self._canvas.config(scrollregion=(0, 0, self._map_image.width,
+                                              self._map_image.height))
         except map_loader.InvalidFileException as err:
             messagebox.showerror(
                 "Error loading file",
@@ -183,25 +188,24 @@ class WndMain(tk.Tk):
         self._draw_tiles()
 
     def _canvas_mouse_motion(self, event):
-        if not self._current_map:
+        if not self._map_image:
             self._status.config(text='')
             self._status.update_idletasks()
             return
         x = self._canvas.canvasx(event.x)
         y = self._canvas.canvasy(event.y)
-        lon, lat = self._current_map.map_data.xy2lonlat(x, y)
-        self._status.config(text=_format_degree(lon) + " " +
-                            _format_degree(lat, True))
+        lon, lat = self._map_image.map_data.xy2lonlat(x, y)
+        self._status.config(text=format_pos_latlon(lat, lon))
         self._status.update_idletasks()
 
     def _draw_tiles(self, clear=False):
-        if not self._current_map:
+        if not self._map_image:
             return
         tstart = time.time()
         canvas = self._canvas
-        mapset_get_tile = self._current_map.get_tile
-        tile_width = self._current_map.tile_width
-        tile_height = self._current_map.tile_height
+        mapset_get_tile = self._map_image.get_tile
+        tile_width = self._map_image.tile_width
+        tile_height = self._map_image.tile_height
         tile_start_x = int(
             (max(canvas.canvasx(0), 0) // tile_width) * tile_width)
         tile_start_y = int(

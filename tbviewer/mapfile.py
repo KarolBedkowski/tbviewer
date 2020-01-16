@@ -48,7 +48,8 @@ class MapFile():
 
     def clear(self):
         self.filename = None
-        self.filepath = None
+        self.img_filename = None
+        self.img_filepath = None
         self.projection = None
         self.map_projection = None
         self.points = []
@@ -73,8 +74,8 @@ class MapFile():
             raise InvalidFileException(
                 "Wrong .map file - wrong header %r" % content[0])
 
-        self.filename = content[1]
-        self.filepath = content[2]
+        self.img_filename = content[1]
+        self.img_filepath = content[2]
         # line 3 - skip
         self.projection = content[4]
         # line 5-6 - reserverd
@@ -89,6 +90,8 @@ class MapFile():
             elif line.startswith('IWH,Map Image Width/Height,'):
                 self.image_width, self.image_height = \
                     map(int, line[27:].split(','))
+            elif line.startswith('MMPNUM,'):
+                self.mmpnum = int(line[7:])
             elif line.startswith('MMPLL'):
                 point_id, lon, lat = _parse_mmpll(line)
                 if point_id - 1 != len(self.mmpll):
@@ -115,11 +118,13 @@ class MapFile():
                  for idx, (x, y) in enumerate(self.mmpxy)]
         mmpll = [_MAP_MMPLL_TEMPLATE.format(idx=idx+1, lat=lat, lon=lon)
                  for idx, (lat, lon) in enumerate(self.mmpll)]
+        # TODO: calc MM1B - The scale of the image meters/pixel, its
+        # calculated in the left / right image direction.
         return _MAP_TEMPALTE.format(
-            filename="dummy.jpg",
-            filepath="dummy.jpg",
+            img_filename=self.img_filename or "dummy.jpg",
+            img_filepath=self.img_filepath or "dummy.jpg",
             points="\n".join(points),
-            mmplen=0,
+            mmplen=len(mmpxy),
             mmpxy="\n".join(mmpxy),
             mmpll="\n".join(mmpll),
             image_width=self.image_width, image_height=self.image_height
@@ -131,16 +136,26 @@ class MapFile():
                        for x, y, lat, lon in points]
 
     def calibrate(self):
-        mmp = calibrate_calculate(self.points, self.image_width,
-                                  self.image_height)
+        mmp = _calibrate_calculate(self.points, self.image_width,
+                                   self.image_height)
         self.mmpll = []
         self.mmpxy = []
         for x, y, lat, lon in mmp:
             self.mmpxy.append((x, y))
             self.mmpll.append((lat, lon))
 
+        self.mmpnum = len(self.mmpll)
+
     def validate(self):
-        return self.mmpnum == len(self.mmpxy) == len(self.mmpll)
+        _LOG.debug("mapfile: %s", self)
+        return self.mmpnum == len(self.mmpxy) == len(self.mmpll) == 4
+
+    def xy2latlon(self, x, y):
+        if not self.mmpll:
+            return None
+        return _map_xy_lonlat(
+            self.mmpll[0], self.mmpll[1], self.mmpll[2], self.mmpll[3],
+            self.image_width, self.image_height, x, y)
 
 
 def _parse_point(line):
@@ -193,7 +208,7 @@ def _parse_mmpll(line):
     return point_id, lon, lat
 
 
-def sort_points(positions, width, height):
+def _sort_points(positions, width, height):
     def dist_from(pos, x0, y0):
         return math.sqrt((pos.x - x0) ** 2 + (pos.y - y0) ** 2)
 
@@ -207,9 +222,9 @@ def sort_points(positions, width, height):
     return (nw, ne, se, sw)
 
 
-def calibrate_calculate(positions, width, height):
+def _calibrate_calculate(positions, width, height):
     _LOG.debug("calibrate_calculate: %r, %r, %r", positions, width, height)
-    poss = sort_points(positions, width, height)
+    poss = _sort_points(positions, width, height)
     p0, p1, p2, p3 = poss
 
     # west/east
@@ -232,6 +247,34 @@ def calibrate_calculate(positions, width, height):
         (0, height, w_lat, s_lon)
     ]
 
+def _map_xy_lonlat(xy0, xy1, xy2, xy3, sx, sy, x, y):
+    x0, y0 = xy0
+    x1, y1 = xy1
+    x2, y2 = xy2
+    x3, y3 = xy3
+
+    syy = sy - y
+    sxx = sx - x
+
+    return _intersect_lines(
+        (syy * x0 + y * x3) / sy, (syy * y0 + y * y3) / sy,
+        (syy * x1 + y * x2) / sy, (syy * y1 + y * y2) / sy,
+        (sxx * x0 + x * x1) / sx, (sxx * y0 + x * y1) / sx,
+        (sxx * x3 + x * x2) / sx, (sxx * y3 + x * y2) / sx)
+
+
+def _det(a, b, c, d):
+    return a * d - b * c
+
+
+def _intersect_lines(x1, y1, x2, y2, x3, y3, x4, y4):
+    d = _det(x1 - x2, y1 - y2, x3 - x4, y3 - y4) or 1
+    d1 = _det(x1, y1, x2, y2)
+    d2 = _det(x3, y3, x4, y4)
+    px = _det(d1, x1 - x2, d2, x3 - x4) / d
+    py = _det(d1, y1 - y2, d2, y3 - y4) / d
+    return px, py
+
 
 def prettydict(d):
     return "\n".join(
@@ -245,11 +288,11 @@ _MAP_POINT_TEMPLATE = \
     "{lon_m:>4},{lon_s:3.7f},{lon_d}, grid,   ,           ,           ,N"
 
 _MAP_MMPXY_TEMPLATE = "MMPXY,{idx},{x},{y}"
-_MAP_MMPLL_TEMPLATE = "MMPLL,{idx},{lat:>11},{lon:>11}"
+_MAP_MMPLL_TEMPLATE = "MMPLL,{idx},{lon:3.7f},{lat:3.7f}"
 
 _MAP_TEMPALTE = """OziExplorer Map Data File Version 2.2
-{filename}
-{filepath}
+{img_filename}
+{img_filepath}
 1 ,Map Code,
 WGS 84,WGS 84,   0.0000,   0.0000,WGS 84
 Reserved 1
