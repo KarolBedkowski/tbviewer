@@ -93,7 +93,7 @@ class MapFile():
             elif line.startswith('MMPNUM,'):
                 self.mmpnum = int(line[7:])
             elif line.startswith('MMPLL'):
-                point_id, lon, lat = _parse_mmpll(line)
+                point_id, lat, lon = _parse_mmpll(line)
                 if point_id - 1 != len(self.mmpll):
                     raise Error()
                 self.mmpll.append((lat, lon))
@@ -107,8 +107,9 @@ class MapFile():
     def to_str(self):
         points = []
         for idx, p in enumerate(self.points):
-            lat_m, lat_s, lat_d = degree2minsec(p.lat)
-            lon_m, lon_s, lon_d = degree2minsec(p.lon)
+            _LOG.debug("%r, %r", idx, p)
+            lat_m, lat_s, lat_d = degree2minsec(p.lat, 'W', 'E')
+            lon_m, lon_s, lon_d = degree2minsec(p.lon, 'S', 'N')
             points.append(_MAP_POINT_TEMPLATE.format(
                 idx=idx, x=int(p.x), y=int(p.y),
                 lat_m=lat_m, lat_s=lat_s, lat_d=lat_d,
@@ -127,7 +128,8 @@ class MapFile():
             mmplen=len(mmpxy),
             mmpxy="\n".join(mmpxy),
             mmpll="\n".join(mmpll),
-            image_width=self.image_width, image_height=self.image_height
+            image_width=self.image_width,
+            image_height=self.image_height
         )
 
     def set_points(self, points):
@@ -155,7 +157,8 @@ class MapFile():
             return None
         return _map_xy_lonlat(
             self.mmpll[0], self.mmpll[1], self.mmpll[2], self.mmpll[3],
-            self.image_width, self.image_height, x, y)
+            self.image_width, self.image_height,
+            x, y)
 
 
 def _parse_point(line):
@@ -164,8 +167,8 @@ def _parse_point(line):
         return None
     point = Point(
         int(fields[2]), int(fields[3]),
-        int(fields[6]) + float(fields[7]) / 60.,
-        int(fields[9]) + float(fields[10]) / 60.)
+        int(fields[9]) + float(fields[10]) / 60.,
+        int(fields[6]) + float(fields[7]) / 60.)
     point.idx = int(fields[0][6:])
     if fields[8] == 'E':
         point.lat *= -1
@@ -209,43 +212,55 @@ def _parse_mmpll(line):
 
 
 def _sort_points(positions, width, height):
+    if not positions:
+        return []
+
     def dist_from(pos, x0, y0):
         return math.sqrt((pos.x - x0) ** 2 + (pos.y - y0) ** 2)
 
-    positions = sorted(positions, key=lambda x: dist_from(x, 0, 0))
-    nw, positions = positions[0], positions[1:]
-    positions = sorted(positions, key=lambda x: dist_from(x, width, 0))
-    ne, positions = positions[0], positions[1:]
-    positions = sorted(positions, key=lambda x: dist_from(x, 0, height))
-    sw, se = positions
-    _LOG.debug(repr(locals()))
+    # TODO: assure distinct points
+
+    nw = sorted(positions, key=lambda x: dist_from(x, 0, 0))[0]
+    ne = sorted(positions, key=lambda x: dist_from(x, width, 0))[0]
+    sw = sorted(positions, key=lambda x: dist_from(x, 0, height))[0]
+    se = sorted(positions, key=lambda x: dist_from(x, width, height))[0]
+    _LOG.debug("_sort_points: nw=%r ne=%r sw=%r se=%r", nw, ne, sw, se)
     return (nw, ne, se, sw)
 
 
 def _calibrate_calculate(positions, width, height):
     _LOG.debug("calibrate_calculate: %r, %r, %r", positions, width, height)
     poss = _sort_points(positions, width, height)
-    p0, p1, p2, p3 = poss
+    nw, ne, se, sw = poss
 
-    # west/east
-    dlat = p0.lat - p2.lat
-    dx = p0.x - p2.x
-    w_lat = p0.lat - (dlat / dx) * p0.x
-    e_lat = w_lat + (dlat / dx) * width
+    # west/east - north
+    ds = (nw.lat - ne.lat) / (nw.x - ne.x)
+    nw_lat = nw.lat - ds * nw.x
+    ne_lat = nw_lat + ds * width
 
-    # north / south
-    dlon = p0.lon - p2.lon
-    dy = p0.y - p2.y
-    n_lon = p0.lon - (dlon / dy) * p0.y
-    s_lon = n_lon + (dlon / dy) * height
-    _LOG.debug(prettydict(locals()))
+    # west/east - south
+    ds = (se.lat - sw.lat) / (se.x - sw.x)
+    sw_lat = sw.lat - ds * sw.x
+    se_lat = sw_lat + ds * width
 
-    return [
-        (0, 0, w_lat, n_lon),
-        (width, 0, e_lat, n_lon),
-        (width, height, e_lat, s_lon),
-        (0, height, w_lat, s_lon)
+    # north / south - west
+    ds = (nw.lon - sw.lon) / (nw.y - sw.y)
+    nw_lon = nw.lon - ds * nw.y
+    sw_lon = nw_lon + ds * height
+
+    # north / south - east
+    ds = (ne.lon - se.lon) / (ne.y - se.y)
+    ne_lon = ne.lon - ds * ne.y
+    se_lon = ne_lon + ds * height
+
+    res = [
+        (0, 0, nw_lat, nw_lon),  # nw
+        (width, 0, ne_lat, ne_lon),  # ne
+        (width, height, se_lat, se_lon),  # se
+        (0, height, sw_lat, sw_lon)  # sw
     ]
+    _LOG.debug("_calibrate_calculate %r", res)
+    return res
 
 def _map_xy_lonlat(xy0, xy1, xy2, xy3, sx, sy, x, y):
     x0, y0 = xy0
@@ -284,11 +299,11 @@ def prettydict(d):
 
 
 _MAP_POINT_TEMPLATE = \
-    "Point{idx},xy,{x:>5},{y:>5},in, deg,{lat_m:>4},{lat_s:3.7f},{lat_d},"\
-    "{lon_m:>4},{lon_s:3.7f},{lon_d}, grid,   ,           ,           ,N"
+    "Point{idx},xy,{x:>5},{y:>5},in, deg,{lon_m:>4},{lon_s:3.7f},{lon_d},"\
+    "{lat_m:>4},{lat_s:3.7f},{lat_d}, grid,   ,           ,           ,N"
 
 _MAP_MMPXY_TEMPLATE = "MMPXY,{idx},{x},{y}"
-_MAP_MMPLL_TEMPLATE = "MMPLL,{idx},{lon:3.7f},{lat:3.7f}"
+_MAP_MMPLL_TEMPLATE = "MMPLL,{idx},{lat:3.7f},{lon:3.7f}"
 
 _MAP_TEMPALTE = """OziExplorer Map Data File Version 2.2
 {img_filename}
