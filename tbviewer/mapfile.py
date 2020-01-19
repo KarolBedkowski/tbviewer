@@ -13,6 +13,7 @@
 import logging
 import math
 
+from . import formatting
 
 _LOG = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ class InvalidFileException(RuntimeError):
 
 
 class Point:
-    def __init__(self, x, y, lat, lon):
+    def __init__(self, x, y, lon, lat):
         self.idx = None
         self.x = x
         self.y = y
@@ -30,7 +31,7 @@ class Point:
         self.lon = lon
 
     def __repr__(self):
-        return prettydict(self.__dict__)
+        return formatting.prettydict(self.__dict__)
 
 
 def degree2minsec(d, lz='S', gz='N'):
@@ -94,10 +95,10 @@ class MapFile():
             elif line.startswith('MMPNUM,'):
                 self.mmpnum = int(line[7:])
             elif line.startswith('MMPLL'):
-                point_id, lat, lon = _parse_mmpll(line)
+                point_id, lon, lat = _parse_mmpll(line)
                 if point_id - 1 != len(self.mmpll):
                     raise Error()
-                self.mmpll.append((lat, lon))
+                self.mmpll.append((lon, lat))
             elif line.startswith('MMPXY'):
                 point_id, x, y = _parse_mmpxy(line)
                 if point_id - 1 != len(self.mmpxy):
@@ -110,9 +111,8 @@ class MapFile():
     def to_str(self):
         points = []
         for idx, p in enumerate(self.points):
-            _LOG.debug("%r, %r", idx, p)
-            lat_m, lat_s, lat_d = degree2minsec(p.lat, 'W', 'E')
-            lon_m, lon_s, lon_d = degree2minsec(p.lon, 'S', 'N')
+            lat_m, lat_s, lat_d = degree2minsec(p.lat, 'S', 'N')
+            lon_m, lon_s, lon_d = degree2minsec(p.lon, 'W', 'E')
             points.append(_MAP_POINT_TEMPLATE.format(
                 idx=idx, x=int(p.x), y=int(p.y),
                 lat_m=lat_m, lat_s=lat_s, lat_d=lat_d,
@@ -121,7 +121,7 @@ class MapFile():
         mmpxy = [_MAP_MMPXY_TEMPLATE.format(idx=idx+1, x=x, y=y)
                  for idx, (x, y) in enumerate(self.mmpxy)]
         mmpll = [_MAP_MMPLL_TEMPLATE.format(idx=idx+1, lat=lat, lon=lon)
-                 for idx, (lat, lon) in enumerate(self.mmpll)]
+                 for idx, (lon, lat) in enumerate(self.mmpll)]
         return _MAP_TEMPALTE.format(
             img_filename=self.img_filename or "dummy.jpg",
             img_filepath=self.img_filepath or "dummy.jpg",
@@ -136,32 +136,31 @@ class MapFile():
 
     def set_points(self, points):
         _LOG.debug("points: %r", points)
-        self.points = [Point(x, y, lat, lon)
-                       for x, y, lat, lon in points]
+        self.points = points
 
     def calibrate(self):
         mmp = _calibrate_calculate(self.points, self.image_width,
                                    self.image_height)
         self.mmpll = []
         self.mmpxy = []
-        for x, y, lat, lon in mmp:
+        for x, y, lon, lat in mmp:
             self.mmpxy.append((x, y))
-            self.mmpll.append((lat, lon))
+            self.mmpll.append((lon, lat))
 
         self.mmpnum = len(self.mmpll)
 
         # calc MM1B - The scale of the image meters/pixel, its
         # calculated in the left / right image direction.
-        lat_w_avg = (self.mmpll[0][0] + self.mmpll[3][0]) / 2
-        lat_e_avg = (self.mmpll[1][0] + self.mmpll[2][0]) / 2
-        lon_avg = (self.mmpll[0][1] + self.mmpll[3][1] +
+        lon_w_avg = (self.mmpll[0][0] + self.mmpll[3][0]) / 2
+        lon_e_avg = (self.mmpll[1][0] + self.mmpll[2][0]) / 2
+        lat_avg = (self.mmpll[0][1] + self.mmpll[3][1] +
                    self.mmpll[1][1] + self.mmpll[2][1]) / 4
 
-        d_lat = lat_e_avg - lat_w_avg
-        d_lat_dist = abs(d_lat * math.pi / 180.0 * 6378137.0 *
-                         math.cos(math.radians(lon_avg)))
+        d_lon = lon_e_avg - lon_w_avg
+        d_lon_dist = abs(d_lon * math.pi / 180.0 * 6378137.0 *
+                         math.cos(math.radians(lat_avg)))
 
-        self.mm1b = d_lat_dist / self.image_width
+        self.mm1b = d_lon_dist / self.image_width
 
     def validate(self):
         _LOG.debug("mapfile: %s", self)
@@ -181,14 +180,15 @@ def _parse_point(line):
     if fields[2].strip() == "":
         return None
     point = Point(
-        int(fields[2]), int(fields[3]),
-        int(fields[9]) + float(fields[10]) / 60.,
-        int(fields[6]) + float(fields[7]) / 60.)
+        x=int(fields[2]),
+        y=int(fields[3]),
+        lat=int(fields[6]) + float(fields[7]) / 60.,
+        lon=int(fields[9]) + float(fields[10]) / 60.)
     point.idx = int(fields[0][6:])
     if fields[8] == 'E':
-        point.lat *= -1
-    if fields[11] == 'S':
         point.lon *= -1
+    if fields[11] == 'S':
+        point.lat *= -1
     return point
 
 
@@ -218,8 +218,8 @@ def _parse_mmpll(line):
     _, point_id, lon, lat = [field.strip() for field in fields]
     try:
         point_id = int(point_id)
-        lon = float(lon)
         lat = float(lat)
+        lon = float(lon)
     except ValueError as err:
         raise InvalidFileException(
             "Wrong .map file - wrong MMPLL field %r; %s" % (line, err))
@@ -245,37 +245,37 @@ def _sort_points(positions, width, height):
 
 def _calibrate_calculate(positions, width, height):
     _LOG.debug("calibrate_calculate: %r, %r, %r", positions, width, height)
-    poss = _sort_points(positions, width, height)
-    nw, ne, se, sw = poss
+    nw, ne, se, sw = _sort_points(positions, width, height)
 
     # west/east - north
-    ds = (nw.lat - ne.lat) / (nw.x - ne.x)
-    nw_lat = nw.lat - ds * nw.x
-    ne_lat = nw_lat + ds * width
+    ds = (nw.lon - ne.lon) / (nw.x - ne.x)
+    nw_lon = nw.lon - ds * nw.x
+    ne_lon = nw_lon + ds * width
 
     # west/east - south
-    ds = (se.lat - sw.lat) / (se.x - sw.x)
-    sw_lat = sw.lat - ds * sw.x
-    se_lat = sw_lat + ds * width
+    ds = (se.lon - sw.lon) / (se.x - sw.x)
+    sw_lon = sw.lon - ds * sw.x
+    se_lon = sw_lon + ds * width
 
     # north / south - west
-    ds = (nw.lon - sw.lon) / (nw.y - sw.y)
-    nw_lon = nw.lon - ds * nw.y
-    sw_lon = nw_lon + ds * height
+    ds = (nw.lat - sw.lat) / (nw.y - sw.y)
+    nw_lat = nw.lat - ds * nw.y
+    sw_lat = nw_lat + ds * height
 
     # north / south - east
-    ds = (ne.lon - se.lon) / (ne.y - se.y)
-    ne_lon = ne.lon - ds * ne.y
-    se_lon = ne_lon + ds * height
+    ds = (ne.lat - se.lat) / (ne.y - se.y)
+    ne_lat = ne.lat - ds * ne.y
+    se_lat = ne_lat + ds * height
 
     res = [
-        (0, 0, nw_lat, nw_lon),  # nw
-        (width, 0, ne_lat, ne_lon),  # ne
-        (width, height, se_lat, se_lon),  # se
-        (0, height, sw_lat, sw_lon)  # sw
+        (0, 0, nw_lon, nw_lat),  # nw
+        (width, 0, ne_lon, ne_lat),  # ne
+        (width, height, se_lon, se_lat),  # se
+        (0, height, sw_lon, sw_lat)  # sw
     ]
     _LOG.debug("_calibrate_calculate %r", res)
     return res
+
 
 def _map_xy_lonlat(xy0, xy1, xy2, xy3, sx, sy, x, y):
     x0, y0 = xy0
@@ -306,19 +306,22 @@ def _intersect_lines(x1, y1, x2, y2, x3, y3, x4, y4):
     return px, py
 
 
-def prettydict(d):
-    return "\n".join(
-        str(key) + "=" + repr(val)
-        for key, val in sorted(d.items())
-    )
+def distance(lat1, lon1, lat2, lon2):
+    dlat2 = math.radians(lat2 - lat1) / 2.
+    dlon2 = math.radians(lon2 - lon1) / 2.
+    lat1 = math.radians(lat1)
+    lat2 = math.radians(lat2)
+    a = math.sin(dlat2) * math.sin(dlat2) + \
+        math.cos(lat1) * math.cos(lat2) * math.sin(dlon2) * math.sin(dlon2)
+    return 12742. * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
 _MAP_POINT_TEMPLATE = \
-    "Point{idx},xy,{x:>5},{y:>5},in, deg,{lon_m:>4},{lon_s:3.7f},{lon_d},"\
-    "{lat_m:>4},{lat_s:3.7f},{lat_d}, grid,   ,           ,           ,N"
+    "Point{idx},xy,{x:>5},{y:>5},in, deg,{lat_m:>4},{lat_s:3.7f},{lat_d},"\
+    "{lon_m:>4},{lon_s:3.7f},{lon_d}, grid,   ,           ,           ,N"
 
 _MAP_MMPXY_TEMPLATE = "MMPXY,{idx},{x},{y}"
-_MAP_MMPLL_TEMPLATE = "MMPLL,{idx},{lat:3.7f},{lon:3.7f}"
+_MAP_MMPLL_TEMPLATE = "MMPLL,{idx},{lon:3.7f},{lat:3.7f}"
 
 _MAP_TEMPALTE = """OziExplorer Map Data File Version 2.2
 {img_filename}

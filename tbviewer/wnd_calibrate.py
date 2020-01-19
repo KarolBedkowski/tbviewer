@@ -60,18 +60,18 @@ class FormPosition:
         return str(self)
 
     def set_lat(self, lat):
-        self.lat_d_v.set('E')
+        self.lat_d_v.set('N')
         if lat < 0:
             lat *= 1
-            self.lat_d_v.set('W')
+            self.lat_d_v.set('S')
         self.lat_m_v.set(int(lat))
         self.lat_s_v.set((lat - int(lat)) * 60.0)
 
     def set_lon(self, lon):
-        self.lon_d_v.set('N')
+        self.lon_d_v.set('E')
         if lon < 0:
             lon *= 1
-            self.lon_d_v.set('S')
+            self.lon_d_v.set('W')
         self.lon_m_v.set(int(lon))
         self.lon_s_v.set((lon - int(lon)) * 60.0)
 
@@ -79,13 +79,13 @@ class FormPosition:
     def lon(self):
         return (int(self.lon_m_v.get()) +
                 float(self.lon_s_v.get()) / 60.0) * \
-            (-1 if self.lon_d_v.get() == 'S' else 1)
+            (-1 if self.lon_d_v.get() == 'W' else 1)
 
     @property
     def lat(self):
         return (int(self.lat_m_v.get()) +
                 float(self.lat_s_v.get()) / 60.0) * \
-            (-1 if self.lat_d_v.get() == 'W' else 1)
+            (-1 if self.lat_d_v.get() == 'S' else 1)
 
 
 class WndCalibrate(tk.Tk):
@@ -192,7 +192,7 @@ class WndCalibrate(tk.Tk):
             grid(row=2, column=0)
         tk.Entry(form_frame, textvariable=pos.lon_s_v, width=12).\
             grid(row=2, column=1)
-        tk.OptionMenu(form_frame, pos.lon_d_v, "N", "S").\
+        tk.OptionMenu(form_frame, pos.lon_d_v, "E", "W").\
             grid(row=2, column=2)
 
         tk.Label(form_frame, text="Lat").grid(row=3, columnspan=3)
@@ -200,7 +200,7 @@ class WndCalibrate(tk.Tk):
             grid(row=4, column=0)
         tk.Entry(form_frame, textvariable=pos.lat_s_v, width=12).\
             grid(row=4, column=1)
-        tk.OptionMenu(form_frame, pos.lat_d_v, "E", "W").\
+        tk.OptionMenu(form_frame, pos.lat_d_v, "N", "S").\
             grid(row=4, column=2)
         ttk.Separator(form_frame, orient=tk.HORIZONTAL)\
             .grid(row=5, columnspan=4, sticky=tk.EW, pady=5)
@@ -261,7 +261,6 @@ class WndCalibrate(tk.Tk):
         self._map_file.filename = fname
         _LOG.debug(self._map_file.to_str())
         for idx, p in enumerate(self._map_file.points[:4]):
-            _LOG.debug("%r, %r", idx, p)
             pdata = self._positions_data[idx]
             pdata.set_lat(p.lat)
             pdata.set_lon(p.lon)
@@ -371,7 +370,8 @@ class WndCalibrate(tk.Tk):
 
         self._map_file.image_width = self._img.width()
         self._map_file.image_height = self._img.height()
-        points = [(p.x, p.y, p.lat, p.lon) for p in self._positions_data]
+        points = [mapfile.Point(p.x, p.y, p.lon, p.lat)
+                  for p in self._positions_data]
         self._map_file.set_points(points)
         self._map_file.calibrate()
         _LOG.debug(str(self._map_file.to_str()))

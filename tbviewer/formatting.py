@@ -16,7 +16,7 @@ import locale
 
 
 def format_pos(degree, latitude=True, short=True):
-    lit = ["NS", "EW"][0 if latitude else 1][0 if degree > 0 else 1]
+    lit = ["EW", "NS"][0 if latitude else 1][0 if degree > 0 else 1]
     degree = abs(degree)
     mint, stop = math.modf(degree)
     if short:
@@ -41,7 +41,7 @@ def format_pos_latlon(lat, lon, short=True):
 
 
 def prettydict(d):
-    return "\n".join(
+    return "{" + ";  ".join(
         str(key) + "=" + repr(val)
         for key, val in sorted(d.items())
-    )
+    ) + "}"
