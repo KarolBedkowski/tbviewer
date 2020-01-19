@@ -31,14 +31,16 @@ setup(
     url='',
     download_url='',
     license='GPL v3',
-    py_modules=['tbviewer', 'tbviewer_dbg'],
+    py_modules=['tbviewer', 'tbviewer_dbg', 'tbcalibrate.py',
+                'tbcalibrate_dbg.py'],
     packages=find_packages('.'),
     package_dir={'': '.'},
     include_package_data=True,
     install_requires=REQUIRES,
     entry_points="""
        [console_scripts]
-       tbviewer.py = tbviewer.main:run
+       tbviewer = tbviewer.main:run
+       tbcalibrate = tbviewer.main:run_calibrate
     """,
     zip_safe=True,
 )
