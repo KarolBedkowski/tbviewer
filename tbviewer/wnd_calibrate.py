@@ -89,7 +89,7 @@ class FormPosition:
 
 
 class WndCalibrate(tk.Tk):
-    def __init__(self, fname):
+    def __init__(self, fname, mapfname=None):
         tk.Tk.__init__(self)
 
         style = ttk.Style()
@@ -128,6 +128,9 @@ class WndCalibrate(tk.Tk):
         if fname:
             self._load(fname)
 
+        if mapfname:
+            self._load_map(mapfname)
+
         self._canvas.bind("<Configure>", self._draw)
         self._canvas.bind("<ButtonPress-1>", self._scroll_start)
         self._canvas.bind("<ButtonRelease-1>", self._scroll_end)
@@ -160,8 +163,15 @@ class WndCalibrate(tk.Tk):
         for idx in range(4):
             self._create_latlon_form(idx, forms_frame)
 
-        tk.Button(forms_frame, text="Calculate", command=self._test_calc)\
-            .grid(columnspan=3)
+        btns_frame = tk.Frame(forms_frame)
+        btns_frame.grid()
+
+        tk.Button(btns_frame, text="Calculate", command=self._calibrate)\
+            .grid(column=0, row=0)
+
+        tk.Button(btns_frame, text="Save Map...",
+                  command=self._save_map_file)\
+            .grid(column=1, row=0)
 
         return forms_frame
 
@@ -169,20 +179,27 @@ class WndCalibrate(tk.Tk):
         pos = self._positions_data[idx]
         form_frame = tk.Frame(forms_frame, borderwidth=5)
         form_frame.grid(column=0, row=idx, sticky=tk.NW)
+        form_frame.grid_columnconfigure(0, weight=0)
+        form_frame.grid_columnconfigure(1, weight=1)
+        form_frame.grid_columnconfigure(2, weight=0)
 
         tk.Radiobutton(form_frame, text="Point " + str(idx+1),
                         variable=self._sel_point, value=idx)\
             .grid(row=0, columnspan=3)
 
         tk.Label(form_frame, text="Lon").grid(row=1, columnspan=3)
-        tk.Entry(form_frame, textvariable=pos.lon_m_v).grid(row=2, column=0)
-        tk.Entry(form_frame, textvariable=pos.lon_s_v).grid(row=2, column=1)
+        tk.Entry(form_frame, textvariable=pos.lon_m_v, width=3).\
+            grid(row=2, column=0)
+        tk.Entry(form_frame, textvariable=pos.lon_s_v, width=12).\
+            grid(row=2, column=1)
         tk.OptionMenu(form_frame, pos.lon_d_v, "N", "S").\
             grid(row=2, column=2)
 
         tk.Label(form_frame, text="Lat").grid(row=3, columnspan=3)
-        tk.Entry(form_frame, textvariable=pos.lat_m_v).grid(row=4, column=0)
-        tk.Entry(form_frame, textvariable=pos.lat_s_v).grid(row=4, column=1)
+        tk.Entry(form_frame, textvariable=pos.lat_m_v, width=3).\
+            grid(row=4, column=0)
+        tk.Entry(form_frame, textvariable=pos.lat_s_v, width=12).\
+            grid(row=4, column=1)
         tk.OptionMenu(form_frame, pos.lat_d_v, "E", "W").\
             grid(row=4, column=2)
         ttk.Separator(form_frame, orient=tk.HORIZONTAL)\
@@ -244,6 +261,7 @@ class WndCalibrate(tk.Tk):
         self._map_file.filename = fname
         _LOG.debug(self._map_file.to_str())
         for idx, p in enumerate(self._map_file.points[:4]):
+            _LOG.debug("%r, %r", idx, p)
             pdata = self._positions_data[idx]
             pdata.set_lat(p.lat)
             pdata.set_lon(p.lon)
@@ -308,12 +326,10 @@ class WndCalibrate(tk.Tk):
         y = self._canvas.canvasy(event.y) - 20
         pos = self._map_file.xy2latlon(x, y)
         info = format_pos_latlon(pos[0], pos[1]) if pos else ""
-        self._status.config(text="x={}  y={}; {}".format(x, y, info))
+        self._status.config(text="x={}  y={};       {}".format(x, y, info))
 
     def _draw(self, clear=False):
-        tstart = time.time()
         canvas = self._canvas
-
         for idx, point in enumerate(self._positions_data):
             x, y = point.x, point.y
             if x is not None and y is not None:
@@ -341,14 +357,15 @@ class WndCalibrate(tk.Tk):
                     self._positions_data[idx].marker = (l1, l2, t, o, o2)
 
         self.update_idletasks()
-        _LOG.debug("_draw in %s", time.time() - tstart)
 
     def _calibrate(self):
         for i in self._positions_data:
             _LOG.info(repr(i))
+
         if not all(p.x is not None and p.y is not None
                    for p in self._positions_data):
             return
+
         if not self._img:
             return
 

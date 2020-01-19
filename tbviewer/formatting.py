@@ -21,10 +21,10 @@ def format_pos(degree, latitude=True, short=True):
     mint, stop = math.modf(degree)
     if short:
         return "%d° %s' %s" % (
-            stop, locale.format('%0.2f', mint * 60), lit)
+            stop, locale.format('%00.2f', mint * 60), lit)
     sec, mint = math.modf(mint * 60)
     return "%d° %d' %s'' %s" % (
-        stop, mint, locale.format('%0.2f', sec * 60), lit)
+        stop, mint, locale.format('%00.2f', sec * 60), lit)
 
 
 def format_pos_lon(degree, short=True):
@@ -36,7 +36,8 @@ def format_pos_lat(degree, short=True):
 
 
 def format_pos_latlon(lat, lon, short=True):
-    return format_pos(lat, False, short) + " " + format_pos(lon, True, short)
+    return format_pos(lat, False, short) + "       " + \
+        format_pos(lon, True, short)
 
 
 def prettydict(d):

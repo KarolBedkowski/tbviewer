@@ -80,7 +80,8 @@ def run_calibrate():
 
     from . import wnd_calibrate
 
-    fname = args[0] if args and args[0] else None
+    fname = args[0] if args else None
+    mapfname = args[1] if args and len(args) > 1 else None
 
-    window = wnd_calibrate.WndCalibrate(fname)
+    window = wnd_calibrate.WndCalibrate(fname, mapfname)
     window.mainloop()
