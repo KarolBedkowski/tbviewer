@@ -44,6 +44,7 @@ class WndMain(tk.Tk):
         self._map_image = None
         self._tiles = {}
         self._last_dir = "."
+        self.canvas_scale = 0
 
         self.grid_columnconfigure(2, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -68,7 +69,10 @@ class WndMain(tk.Tk):
 
         self._status = tk.Label(self, text="", bd=1, relief=tk.SUNKEN,
                                 anchor=tk.W)
-        self._status.grid(column=0, row=2, columnspan=3, sticky=tk.EW)
+        self._status.grid(column=0, row=2, sticky=tk.EW)
+        self._status_scale = tk.Label(self, text="", bd=1, relief=tk.SUNKEN,
+                                      anchor=tk.W)
+        self._status_scale.grid(column=1, row=2, columnspan=2, sticky=tk.EW)
 
         ttk.Sizegrip(self).grid(column=3, row=2, sticky=tk.SE)
 
@@ -80,6 +84,11 @@ class WndMain(tk.Tk):
         self._canvas.bind("<ButtonPress-1>", self._scroll_start)
         self._canvas.bind("<B1-Motion>", self._scroll_move)
         self._canvas.bind('<Motion>', self._canvas_mouse_motion)
+        # with Windows OS
+        self._canvas.bind("<MouseWheel>", self._canvas_mouse_wheel)
+        # with Linux OS
+        self._canvas.bind("<Button-4>", self._canvas_mouse_wheel)
+        self._canvas.bind("<Button-5>", self._canvas_mouse_wheel)
 
         self.geometry("1024x768")
         self.lift()
@@ -155,6 +164,7 @@ class WndMain(tk.Tk):
 
         try:
             self._map_image = map_loader.Map(filename)
+            self.canvas_scale = 0
             self._canvas.config(scrollregion=(0, 0, self._map_image.width,
                                               self._map_image.height))
         except map_loader.InvalidFileException as err:
@@ -192,40 +202,65 @@ class WndMain(tk.Tk):
             self._status.config(text='')
             self._status.update_idletasks()
             return
-        x = self._canvas.canvasx(event.x)
-        y = self._canvas.canvasy(event.y)
+        scale = 2 ** self.canvas_scale
+        x = self._canvas.canvasx(event.x) / scale
+        y = self._canvas.canvasy(event.y) / scale
         lat, lon = self._map_image.map_data.xy2latlon(x, y)
         self._status.config(text=format_pos_latlon(lat, lon))
         self._status.update_idletasks()
+        self._status_scale.config(text="scale: {:0.2f}x".format(scale))
+
+    def _canvas_mouse_wheel(self, event):
+        _LOG.debug("event: %r", event)
+        if event.num == 5 or event.delta == -120 and self.canvas_scale > -5:
+            self.canvas_scale -= 1
+        elif event.num == 4 or event.delta == 120 and self.canvas_scale < 5:
+            self.canvas_scale += 1
+        self._clear_tile_cache()
+
+        scale = 2.0 ** self.canvas_scale
+        width = int(self._map_image.width * scale)
+        height = int(self._map_image.height * scale)
+        self._canvas.config(scrollregion=(0, 0, width, height))
+        self._draw_tiles(True)
+        self._canvas_mouse_motion(event)
 
     def _draw_tiles(self, clear=False):
         if not self._map_image:
             return
         canvas = self._canvas
+        scale = 2.0 ** self.canvas_scale
+        _LOG.debug("scale: %r", scale)
         mapset_get_tile = self._map_image.get_tile
         tile_width = self._map_image.tile_width
         tile_height = self._map_image.tile_height
-        tile_start_x = int(
-            (max(canvas.canvasx(0), 0) // tile_width) * tile_width)
-        tile_start_y = int(
-            (max(canvas.canvasy(0), 0) // tile_height) * tile_height)
-        tiles_x = int(tile_start_x
-                      + ((canvas.winfo_width() // tile_width) + 2)
-                      * tile_width)
-        tiles_y = int(tile_start_y
-                      + ((canvas.winfo_height() // tile_height) + 2)
-                      * tile_height)
+
+        tile_show_width = int(tile_width * scale)
+        tile_show_height = int(tile_height * scale)
+        visible_x0 = max(canvas.canvasx(0), 0)
+        visible_y0 = max(canvas.canvasy(0), 0)
+        visible_x1 = canvas.winfo_width()
+        visible_y1 = canvas.winfo_height()
+
+        tile_start_x = int(max(visible_x0 // tile_show_width, 0))
+        tile_start_y = int(max(visible_y0 // tile_show_height, 0))
+        tiles_x = int(visible_x1 // tile_show_width) + 2
+        tiles_y = int(visible_y1 // tile_show_height) + 2
+
         new_tile_list = {}
-        for tx in range(tile_start_x, tiles_x, tile_width):
-            for ty in range(tile_start_y, tiles_y, tile_height):
+        for tx in range(tile_start_x, tile_start_x + tiles_x):
+            tx *= tile_width
+            for ty in range(tile_start_y, tile_start_y + tiles_y):
+                ty *= tile_height
                 iidimg = self._tiles.get((tx, ty))
                 if iidimg:
                     new_tile_list[(tx, ty)] = iidimg
                 else:
-                    img = mapset_get_tile(tx, ty)
+                    img = mapset_get_tile(tx, ty, scale)
                     if img:
                         iid = canvas.create_image(
-                            tx, ty, image=img, anchor=tk.NW)
+                            tx * scale, ty * scale,
+                            image=img, anchor=tk.NW)
                         new_tile_list[(tx, ty)] = iid, img
 
         # remove unused tiles
@@ -238,3 +273,7 @@ class WndMain(tk.Tk):
         for (iid, _) in self._tiles.values():
             self._canvas.delete(iid)
         self._tiles.clear()
+
+
+def _round_to(x, y):
+    return int((x // y) * y)

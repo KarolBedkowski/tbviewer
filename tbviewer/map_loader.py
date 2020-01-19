@@ -10,8 +10,9 @@ import os.path
 import collections
 import tarfile
 import logging
+import io
 
-from PIL import ImageTk
+from PIL import ImageTk, Image
 
 from . import mapfile
 
@@ -183,7 +184,7 @@ class Map:
         """Whole map height."""
         return self.map_data.image_height
 
-    def get_tile(self, x, y):
+    def get_tile(self, x, y, scale=1):
         """Get one tile from tar file."""
         name = self.set_data.get((x, y))
         if not name:
@@ -191,7 +192,13 @@ class Map:
                 _LOG.error("wrong tile pos: %d, %d", x, y)
             return None
         data = self._fs.get_file_binary(name)
-        return ImageTk.PhotoImage(data=data)
+        if scale == 1:
+            return ImageTk.PhotoImage(data=data)
+        image = Image.open(io.BytesIO(data))
+        image = image.resize(
+            (int(image.width * scale), int(image.height * scale)),
+            Image.ANTIALIAS)
+        return ImageTk.PhotoImage(image)
 
     def _load_map_meta(self):
         # find map file
