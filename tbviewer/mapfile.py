@@ -56,6 +56,7 @@ class MapFile():
         self.mmpxy = []
         self.mmpll = []
         self.mmpnum = None
+        self.mm1b = None
         self.image_width = None
         self.image_height = None
 
@@ -103,6 +104,8 @@ class MapFile():
                     _LOG.warn("parse mmpxy error: %r", line)
                     raise InvalidFileException()
                 self.mmpxy.append((x, y))
+            elif line.startswith('MM1B,'):
+                self.mm1b = float(line[5:])
 
     def to_str(self):
         points = []
@@ -119,8 +122,6 @@ class MapFile():
                  for idx, (x, y) in enumerate(self.mmpxy)]
         mmpll = [_MAP_MMPLL_TEMPLATE.format(idx=idx+1, lat=lat, lon=lon)
                  for idx, (lat, lon) in enumerate(self.mmpll)]
-        # TODO: calc MM1B - The scale of the image meters/pixel, its
-        # calculated in the left / right image direction.
         return _MAP_TEMPALTE.format(
             img_filename=self.img_filename or "dummy.jpg",
             img_filepath=self.img_filepath or "dummy.jpg",
@@ -128,6 +129,7 @@ class MapFile():
             mmplen=len(mmpxy),
             mmpxy="\n".join(mmpxy),
             mmpll="\n".join(mmpll),
+            mm1b=self.mm1b,
             image_width=self.image_width,
             image_height=self.image_height
         )
@@ -147,6 +149,19 @@ class MapFile():
             self.mmpll.append((lat, lon))
 
         self.mmpnum = len(self.mmpll)
+
+        # calc MM1B - The scale of the image meters/pixel, its
+        # calculated in the left / right image direction.
+        lat_w_avg = (self.mmpll[0][0] + self.mmpll[3][0]) / 2
+        lat_e_avg = (self.mmpll[1][0] + self.mmpll[2][0]) / 2
+        lon_avg = (self.mmpll[0][1] + self.mmpll[3][1] +
+                   self.mmpll[1][1] + self.mmpll[2][1]) / 4
+
+        d_lat = lat_e_avg - lat_w_avg
+        d_lat_dist = abs(d_lat * math.pi / 180.0 * 6378137.0 *
+                         math.cos(math.radians(lon_avg)))
+
+        self.mm1b = d_lat_dist / self.image_width
 
     def validate(self):
         _LOG.debug("mapfile: %s", self)
@@ -323,7 +338,7 @@ MM0,Yes
 MMPNUM,{mmplen}
 {mmpxy}
 {mmpll}
-MM1B,4.450529
+MM1B,{mm1b}
 MOP,Map Open Position,0,0
 IWH,Map Image Width/Height,{image_width},{image_height}
 """
