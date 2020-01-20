@@ -20,7 +20,7 @@ from tkinter import messagebox
 from tkinter import ttk
 from tkinter import tix
 
-from PIL import ImageTk
+from PIL import ImageTk, Image
 
 from . import mapfile
 from .formatting import format_pos_latlon
@@ -106,6 +106,7 @@ class WndCalibrate(tk.Tk):
         self._img = None
         self._img_filename = None
         self._map_file = mapfile.MapFile()
+        self._scale = 0
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -137,6 +138,11 @@ class WndCalibrate(tk.Tk):
         self._canvas.bind("<Double-Button-1>", self._canvas_dclick)
         self._canvas.bind("<B1-Motion>", self._scroll_move)
         self._canvas.bind('<Motion>', self._canvas_mouse_motion)
+        # with Windows OS
+        self._canvas.bind("<MouseWheel>", self._canvas_mouse_wheel)
+        # with Linux OS
+        self._canvas.bind("<Button-4>", self._canvas_mouse_wheel)
+        self._canvas.bind("<Button-5>", self._canvas_mouse_wheel)
 
         self.geometry("1024x768")
 
@@ -184,7 +190,7 @@ class WndCalibrate(tk.Tk):
         form_frame.grid_columnconfigure(2, weight=0)
 
         tk.Radiobutton(form_frame, text="Point " + str(idx+1),
-                        variable=self._sel_point, value=idx)\
+                       variable=self._sel_point, value=idx)\
             .grid(row=0, columnspan=3)
 
         tk.Label(form_frame, text="Lon").grid(row=1, columnspan=3)
@@ -236,13 +242,23 @@ class WndCalibrate(tk.Tk):
 
     def _load(self, fname):
         self._canvas.delete('img')
-        self._img = img = ImageTk.PhotoImage(file=fname)
+        if self._scale == 0:
+            self._img = img = ImageTk.PhotoImage(file=fname)
+        else:
+            img = Image.open(fname)
+            scale = 2 ** self._scale
+            _LOG.debug("scale %r", scale)
+            img = img.resize((int(img.width * scale),
+                              int(img.height * scale)),
+                             Image.ANTIALIAS)
+            self._img = img = ImageTk.PhotoImage(img)
         self._canvas.create_image(20, 20, image=img, anchor=tk.NW)
         self._canvas.config(
             width=img.width() + 40,
             height=img.height() + 40,
             scrollregion=(0, 0, img.width() + 40, img.height() + 40))
         self.update_idletasks()
+        self._img_filename = fname
 
     def _open_map_file(self):
         fname = filedialog.askopenfilename(
@@ -313,8 +329,9 @@ class WndCalibrate(tk.Tk):
         y = self._canvas.canvasy(event.y)
         selected = self._sel_point.get()
         _LOG.info("dclick %s %s %s", x, y, selected)
-        self._positions_data[selected].x = x - 20
-        self._positions_data[selected].y = y - 20
+        scale = 2 ** self._scale
+        self._positions_data[selected].x = (x - 20) / scale
+        self._positions_data[selected].y = (y - 20) / scale
         self._draw()
 
     def _canvas_mouse_motion(self, event):
@@ -323,36 +340,59 @@ class WndCalibrate(tk.Tk):
 
         x = self._canvas.canvasx(event.x) - 20
         y = self._canvas.canvasy(event.y) - 20
+        scale = 2 ** self._scale
+        x /= scale
+        y /= scale
         pos = self._map_file.xy2latlon(x, y)
         info = format_pos_latlon(pos[0], pos[1]) if pos else ""
         self._status.config(text="x={}  y={};       {}".format(x, y, info))
 
+    def _canvas_mouse_wheel(self, event):
+        _LOG.debug("event: %r", event)
+        if event.num == 5 or event.delta == -120 and self._scale > -5:
+            self._scale -= 1
+        elif event.num == 4 or event.delta == 120 and self._scale < 1:
+            self._scale += 1
+
+        self._load(self._img_filename)
+        self._draw(True)
+        self._canvas_mouse_motion(event)
+
     def _draw(self, clear=False):
         canvas = self._canvas
+        if clear:
+            canvas.delete("marker")
+
+        scale = 2 ** self._scale
         for idx, point in enumerate(self._positions_data):
-            x, y = point.x, point.y
+            x, y = point.x * scale, point.y * scale
             if x is not None and y is not None:
                 x += 20
                 y += 20
 
                 p = self._positions_data[idx].marker
-                if p:
+                if p and not clear:
                     canvas.coords(p[0], x, y - 20, x, y + 20)
                     canvas.coords(p[1], x - 20, y, x + 20, y)
                     canvas.coords(p[2], x + 7, y + 7)  # label
                     canvas.coords(p[3], x - 20, y - 20, x + 20, y + 20)
                     canvas.coords(p[4], x - 20, y - 20, x + 20, y + 20)
                 else:
-                    l1 = canvas.create_line(x, y - 20, x, y + 20, fill="red")
-                    l2 = canvas.create_line(x - 20, y, x + 20, y, fill="red")
+                    l1 = canvas.create_line(x, y - 20, x, y + 20, fill="red",
+                                            tag="marker")
+                    l2 = canvas.create_line(x - 20, y, x + 20, y, fill="red",
+                                            tag="marker")
                     o = canvas.create_oval(x - 20, y - 20, x + 20, y + 20,
                                            activewidth="6", width="5",
-                                           outline="black")
+                                           outline="black",
+                                           tag="marker")
                     o2 = canvas.create_oval(x - 20, y - 20, x + 20, y + 20,
                                             activewidth="3", width="2",
-                                            outline="red")
+                                            outline="red",
+                                            tag="marker")
                     t = canvas.create_text(x + 7, y + 7, fill="red",
-                                           text=str(idx + 1))
+                                           text=str(idx + 1),
+                                           tag="marker")
                     self._positions_data[idx].marker = (l1, l2, t, o, o2)
 
         self.update_idletasks()
