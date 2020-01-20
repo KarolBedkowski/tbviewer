@@ -30,7 +30,7 @@ __copyright__ = "Copyright (c) Karol Będkowski, 2015-2020"
 _LOG = logging.getLogger(__name__)
 
 
-class WndMain(tk.Tk):
+class WndViewer(tk.Tk):
     def __init__(self, fname):
         tk.Tk.__init__(self)
 
@@ -220,8 +220,8 @@ class WndMain(tk.Tk):
 
     def _canvas_mouse_motion(self, event):
         lat_txt = lon_txt = ""
+        scale = 2 ** self._zoom
         if self._map_image:
-            scale = 2 ** self._zoom
             x = self._canvas.canvasx(event.x) / scale
             y = self._canvas.canvasy(event.y) / scale
             lat, lon = self._map_image.map_data.xy2latlon(x, y)
@@ -231,7 +231,7 @@ class WndMain(tk.Tk):
         self._status_lon.config(text=lon_txt)
         self._status_lat.update_idletasks()
         self._status_lon.update_idletasks()
-        self._status_scale.config(text=" {:0.2f}x ".format(scale))
+        self._status_scale.config(text=f"{scale:0.2f}x")
 
     def _canvas_mouse_wheel(self, event):
         if event.num == 5 or event.delta == -120 and self._zoom > -5:

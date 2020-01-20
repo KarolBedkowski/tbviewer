@@ -34,8 +34,8 @@ def _parse_opt():
     return optp.parse_args()
 
 
-def run():
-    """ Run application. """
+def run_viewer():
+    """Run viewer application."""
     # parse options
     options, args = _parse_opt()
 
@@ -52,11 +52,11 @@ def run():
         app.start()
         return
 
-    from . import wnd_main
+    from . import wnd_viewer
 
     fname = args[0] if args and args[0] else None
 
-    window = wnd_main.WndMain(fname)
+    window = wnd_viewer.WndViewer(fname)
     window.mainloop()
 
 

@@ -16,4 +16,4 @@ __version__ = "2015-05-10"
 from tbviewer import main
 
 if __name__ == "__main__":
-    main.run()
+    main.run_viewer()
