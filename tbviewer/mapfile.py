@@ -234,42 +234,65 @@ def _parse_mmpll(line):
 
 
 def _sort_points(positions, width, height):
-    if not positions:
+    if not positions or len(positions) < 2:
         return []
 
     def dist_from(pos, x0, y0):
         return math.sqrt((pos.x - x0) ** 2 + (pos.y - y0) ** 2)
 
-    # TODO: assure distinct points
+    # north, w-e
+    t_pos = sorted(positions, key=lambda x: dist_from(x, 0, 0))
+    n_nw = t_pos[0]
+    n_ne = sorted(t_pos[1:], key=lambda x: dist_from(x, width, 0))[0]
+    top = (n_nw, n_ne)
 
-    nw = sorted(positions, key=lambda x: dist_from(x, 0, 0))[0]
-    ne = sorted(positions, key=lambda x: dist_from(x, width, 0))[0]
-    sw = sorted(positions, key=lambda x: dist_from(x, 0, height))[0]
-    se = sorted(positions, key=lambda x: dist_from(x, width, height))[0]
-    _LOG.debug("_sort_points: nw=%r ne=%r sw=%r se=%r", nw, ne, sw, se)
-    return (nw, ne, se, sw)
+    # south, w-e
+    t_pos = sorted(positions, key=lambda x: dist_from(x, 0, height))
+    s_nw = t_pos[0]
+    s_ne = sorted(t_pos[1:], key=lambda x: dist_from(x, width, height))[0]
+    bottom = (s_nw, s_ne)
+
+    # west, n-s
+    t_pos = sorted(positions, key=lambda x: dist_from(x, 0, 0))
+    w_nw = t_pos[0]
+    w_sw = sorted(t_pos[1:], key=lambda x: dist_from(x, 0, height))[0]
+    left = (w_nw, w_sw)
+
+    # east, n-s
+    t_pos = sorted(positions, key=lambda x: dist_from(x, width, 0))
+    e_nw = t_pos[0]
+    e_sw = sorted(t_pos[1:], key=lambda x: dist_from(x, width, height))[0]
+    right = (e_nw, e_sw)
+
+    _LOG.debug("_sort_points: left=%r right=%r top=%r bottom=%r",
+               left, right, top, bottom)
+    return (left, right, top, bottom)
 
 
 def _calibrate_calculate(positions, width, height):
     _LOG.debug("calibrate_calculate: %r, %r, %r", positions, width, height)
-    nw, ne, se, sw = _sort_points(positions, width, height)
+    left, right, top, bottom = _sort_points(positions, width, height)
 
     # west/east - north
+    nw, ne = top
     ds = (nw.lon - ne.lon) / (nw.x - ne.x)
     nw_lon = nw.lon - ds * nw.x
     ne_lon = nw_lon + ds * width
 
     # west/east - south
+    se, sw = bottom
     ds = (se.lon - sw.lon) / (se.x - sw.x)
     sw_lon = sw.lon - ds * sw.x
     se_lon = sw_lon + ds * width
 
     # north / south - west
+    nw, sw = left
     ds = (nw.lat - sw.lat) / (nw.y - sw.y)
     nw_lat = nw.lat - ds * nw.y
     sw_lat = nw_lat + ds * height
 
     # north / south - east
+    ne, se = right
     ds = (ne.lat - se.lat) / (ne.y - se.y)
     ne_lat = ne.lat - ds * ne.y
     se_lat = ne_lat + ds * height
