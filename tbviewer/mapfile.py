@@ -76,6 +76,9 @@ class MapFile():
             raise InvalidFileException(
                 "Wrong .map file - wrong header %r" % content[0])
 
+        if len(content) < 10:
+            raise InvalidFileException("Wrong .map file - too short")
+
         self.img_filename = content[1]
         self.img_filepath = content[2]
         # line 3 - skip
@@ -85,28 +88,32 @@ class MapFile():
         self.map_projection = content[8]
 
         for line in content[9:]:
-            if line.startswith("Point"):
-                point = _parse_point(line)
-                if point:
-                    self.points.append(point)
-            elif line.startswith('IWH,Map Image Width/Height,'):
-                self.image_width, self.image_height = \
-                    map(int, line[27:].split(','))
-            elif line.startswith('MMPNUM,'):
-                self.mmpnum = int(line[7:])
-            elif line.startswith('MMPLL'):
-                point_id, lon, lat = _parse_mmpll(line)
-                if point_id - 1 != len(self.mmpll):
-                    raise Error()
-                self.mmpll.append((lon, lat))
-            elif line.startswith('MMPXY'):
-                point_id, x, y = _parse_mmpxy(line)
-                if point_id - 1 != len(self.mmpxy):
-                    _LOG.warn("parse mmpxy error: %r", line)
-                    raise InvalidFileException()
-                self.mmpxy.append((x, y))
-            elif line.startswith('MM1B,'):
-                self.mm1b = float(line[5:])
+            try:
+                if line.startswith("Point"):
+                    point = _parse_point(line)
+                    if point:
+                        self.points.append(point)
+                elif line.startswith('IWH,Map Image Width/Height,'):
+                    self.image_width, self.image_height = \
+                        map(int, line[27:].split(','))
+                elif line.startswith('MMPNUM,'):
+                    self.mmpnum = int(line[7:])
+                elif line.startswith('MMPLL'):
+                    point_id, lon, lat = _parse_mmpll(line)
+                    if point_id - 1 != len(self.mmpll):
+                        raise InvalidFileException("Invalid MMPLL point id")
+                    self.mmpll.append((lon, lat))
+                elif line.startswith('MMPXY'):
+                    point_id, x, y = _parse_mmpxy(line)
+                    if point_id - 1 != len(self.mmpxy):
+                        _LOG.warn("parse mmpxy error: %r", line)
+                        raise InvalidFileException("Invalid MMPXY point index")
+                    self.mmpxy.append((x, y))
+                elif line.startswith('MM1B,'):
+                    self.mm1b = float(line[5:])
+            except ValueError as err:
+                raise InvalidFileException(
+                    f"Error loading line '{line}': {err}")
 
     def to_str(self):
         points = []
@@ -155,7 +162,6 @@ class MapFile():
         lon_e_avg = (self.mmpll[1][0] + self.mmpll[2][0]) / 2
         lat_avg = (self.mmpll[0][1] + self.mmpll[3][1] +
                    self.mmpll[1][1] + self.mmpll[2][1]) / 4
-
         d_lon = lon_e_avg - lon_w_avg
         d_lon_dist = abs(d_lon * math.pi / 180.0 * 6378137.0 *
                          math.cos(math.radians(lat_avg)))
@@ -176,6 +182,7 @@ class MapFile():
 
 
 def _parse_point(line):
+    _LOG.debug("_parse_point %r", line)
     fields = line.split(',')
     if fields[2].strip() == "":
         return None
@@ -184,7 +191,7 @@ def _parse_point(line):
         y=int(fields[3]),
         lat=int(fields[6]) + float(fields[7]) / 60.,
         lon=int(fields[9]) + float(fields[10]) / 60.)
-    point.idx = int(fields[0][6:])
+    point.idx = int(fields[0][5:])
     if fields[8] == 'E':
         point.lon *= -1
     if fields[11] == 'S':
@@ -317,7 +324,7 @@ def distance(lat1, lon1, lat2, lon2):
 
 
 _MAP_POINT_TEMPLATE = \
-    "Point{idx},xy,{x:>5},{y:>5},in, deg,{lat_m:>4},{lat_s:3.7f},{lat_d},"\
+    "Point{idx:02d},xy,{x:>5},{y:>5},in, deg,{lat_m:>4},{lat_s:3.7f},{lat_d},"\
     "{lon_m:>4},{lon_s:3.7f},{lon_d}, grid,   ,           ,           ,N"
 
 _MAP_MMPXY_TEMPLATE = "MMPXY,{idx},{x},{y}"
