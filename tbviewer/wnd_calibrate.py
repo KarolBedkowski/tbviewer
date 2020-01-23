@@ -25,6 +25,7 @@ from PIL import ImageTk, Image
 from . import mapfile
 from . import formatting
 from . import dialogs
+from . import tkutils
 
 __author__ = "Karol Będkowski"
 __copyright__ = "Copyright (c) Karol Będkowski, 2015-2020"
@@ -134,6 +135,7 @@ class WndCalibrate(tk.Tk):
         self._build_menu()
         self.title("TBViewer")
 
+        self._busy_manager = tkutils.BusyManager(self)
         self._last_dir = ""
         self._sel_point = tk.IntVar()
         self._sel_point.set(0)
@@ -309,6 +311,8 @@ class WndCalibrate(tk.Tk):
         return img
 
     def _load(self, fname):
+        self._busy_manager.busy()
+        self.update()
         self._canvas.delete('img')
         self._img = None
         try:
@@ -324,6 +328,7 @@ class WndCalibrate(tk.Tk):
                 scrollregion=(0, 0, img.width() + 40, img.height() + 40))
             self.update_idletasks()
             self._img_filename = fname
+        self._busy_manager.notbusy()
 
     def _open_map_file(self):
         fname = filedialog.askopenfilename(
@@ -340,6 +345,8 @@ class WndCalibrate(tk.Tk):
                 self._last_dir = os.path.dirname(fname)
 
     def _load_map(self, fname):
+        self._busy_manager.busy()
+        self.update()
         with open(fname) as f:
             content = f.read()
         self._map_file.parse_map(content)
@@ -351,6 +358,7 @@ class WndCalibrate(tk.Tk):
             pdata.set_lon(p.lon)
             pdata.x = p.x
             pdata.y = p.y
+        self._busy_manager.notbusy()
         self._draw()
 
     def _save_map_file(self):
@@ -437,6 +445,8 @@ class WndCalibrate(tk.Tk):
         self._canvas_mouse_motion(event)
 
     def _draw(self, clear=False):
+        self._busy_manager.busy()
+        self.update()
         canvas = self._canvas
         if clear:
             canvas.delete("marker")
@@ -471,6 +481,7 @@ class WndCalibrate(tk.Tk):
                                            tag="marker")
                     self._positions_data[idx].marker = (l1, l2, t, o, o2)
 
+        self._busy_manager.notbusy()
         self.update_idletasks()
 
     def _calibrate(self):

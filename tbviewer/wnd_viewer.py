@@ -22,6 +22,7 @@ from tkinter import tix
 
 from . import map_loader
 from . import formatting
+from . import tkutils
 
 
 __author__ = "Karol Będkowski"
@@ -40,6 +41,7 @@ class WndViewer(tk.Tk):
         self._build_menu()
         self.title("TBViewer")
 
+        self._busy_manager = tkutils.BusyManager(self)
         self._tb_atlas = None
         # current map image
         self._map_image = None
@@ -138,10 +140,13 @@ class WndViewer(tk.Tk):
             self._map_image = None
 
         self._clear_tile_cache()
+        self._busy_manager.busy()
+        self.update()
 
         try:
             file_type = map_loader.check_file_type(fname)
         except IOError as err:
+            self._busy_manager.notbusy()
             messagebox.showerror("Error loading file", f"Read file {err}")
             self._status_text.config(text="Load error...")
             return
@@ -152,6 +157,7 @@ class WndViewer(tk.Tk):
         elif file_type in ('map', 'tar-map'):
             self._tb_atlas = map_loader.FakeAlbum(fname)
         else:
+            self._busy_manager.notbusy()
             messagebox.showerror(
                 "Error loading file",
                 "Invalid file - should be .map or .tar or .tba")
@@ -176,8 +182,11 @@ class WndViewer(tk.Tk):
                 self._tree.selection_set(tree_maps[0])
                 self._on_tree_click(None, item=tree_maps[0])
         self._status_text.config(text="")
+        self._busy_manager.notbusy()
 
     def _load_map(self, filename):
+        self._busy_manager.busy()
+        self.update()
         _LOG.info("_load_map %s", filename)
         if self._map_image:
             self._map_image = None
@@ -195,6 +204,7 @@ class WndViewer(tk.Tk):
                                  f"Open file error: {err}")
         self._clear_tile_cache()
         self._draw_tiles(True)
+        self._busy_manager.notbusy()
 
     def _on_tree_click(self, event, item=None):
         item = item or self._tree.identify('item', event.x, event.y)
