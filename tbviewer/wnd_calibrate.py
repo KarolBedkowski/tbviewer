@@ -489,8 +489,8 @@ class WndCalibrate(tk.Tk):
 
         self._map_file.image_width = self._img.width()
         self._map_file.image_height = self._img.height()
-        points = [mapfile.Point(p.x, p.y, p.lon, p.lat)
-                  for p in self._positions_data]
+        points = [mapfile.Point(x=p.x, y=p.y, lon=p.lon, lat=p.lat, idx=idx)
+                  for idx, p in enumerate(self._positions_data)]
         self._map_file.set_points(points)
         self._map_file.calibrate()
 

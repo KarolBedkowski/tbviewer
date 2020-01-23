@@ -23,8 +23,8 @@ class InvalidFileException(RuntimeError):
 
 
 class Point:
-    def __init__(self, x, y, lon, lat):
-        self.idx = None
+    def __init__(self, x, y, lon, lat, idx=None):
+        self.idx = idx
         self.x = x
         self.y = y
         self.lat = lat
@@ -54,7 +54,9 @@ class MapFile():
         self.projection = None
         self.map_projection = None
         self.points = []
+        # x, y
         self.mmpxy = []
+        # lon, lat
         self.mmpll = []
         self.mmpnum = None
         self.mm1b = None
@@ -118,6 +120,7 @@ class MapFile():
     def to_str(self):
         points = []
         for idx, p in enumerate(self.points):
+            _LOG.debug("Point %r", p)
             lat_m, lat_s, lat_d = degree2minsec(p.lat, 'S', 'N')
             lon_m, lon_s, lon_d = degree2minsec(p.lon, 'W', 'E')
             points.append(_MAP_POINT_TEMPLATE.format(
@@ -146,13 +149,15 @@ class MapFile():
         self.points = points
 
     def calibrate(self):
-        mmp = _calibrate_calculate(self.points, self.image_width,
-                                   self.image_height)
+        points = _calibrate_calculate(self.points, self.image_width,
+                                      self.image_height)
         self.mmpll = []
         self.mmpxy = []
-        for x, y, lon, lat in mmp:
-            self.mmpxy.append((x, y))
-            self.mmpll.append((lon, lat))
+        for p in points:
+            self.mmpxy.append((p.x, p.y))
+            self.mmpll.append((p.lon, p.lat))
+
+        _LOG.debug("mmpll: %r", self.mmpll)
 
         self.mmpnum = len(self.mmpll)
 
@@ -225,8 +230,8 @@ def _parse_mmpll(line):
     _, point_id, lon, lat = [field.strip() for field in fields]
     try:
         point_id = int(point_id)
-        lat = float(lat)
         lon = float(lon)
+        lat = float(lat)
     except ValueError as err:
         raise InvalidFileException(
             "Wrong .map file - wrong MMPLL field %r; %s" % (line, err))
@@ -248,9 +253,9 @@ def _sort_points(positions, width, height):
 
     # south, w-e
     t_pos = sorted(positions, key=lambda x: dist_from(x, 0, height))
-    s_nw = t_pos[0]
-    s_ne = sorted(t_pos[1:], key=lambda x: dist_from(x, width, height))[0]
-    bottom = (s_nw, s_ne)
+    s_sw = t_pos[0]
+    s_se = sorted(t_pos[1:], key=lambda x: dist_from(x, width, height))[0]
+    bottom = (s_sw, s_se)
 
     # west, n-s
     t_pos = sorted(positions, key=lambda x: dist_from(x, 0, 0))
@@ -260,12 +265,10 @@ def _sort_points(positions, width, height):
 
     # east, n-s
     t_pos = sorted(positions, key=lambda x: dist_from(x, width, 0))
-    e_nw = t_pos[0]
-    e_sw = sorted(t_pos[1:], key=lambda x: dist_from(x, width, height))[0]
-    right = (e_nw, e_sw)
+    e_ne = t_pos[0]
+    e_se = sorted(t_pos[1:], key=lambda x: dist_from(x, width, height))[0]
+    right = (e_ne, e_se)
 
-    _LOG.debug("_sort_points: left=%r right=%r top=%r bottom=%r",
-               left, right, top, bottom)
     return (left, right, top, bottom)
 
 
@@ -278,30 +281,34 @@ def _calibrate_calculate(positions, width, height):
     ds = (nw.lon - ne.lon) / (nw.x - ne.x)
     nw_lon = nw.lon - ds * nw.x
     ne_lon = nw_lon + ds * width
+    _LOG.debug("top: %r ds=%r nw_lon=%r, ne_lon=%r", top, ds, nw_lon, ne_lon)
 
     # west/east - south
-    se, sw = bottom
+    sw, se = bottom
     ds = (se.lon - sw.lon) / (se.x - sw.x)
     sw_lon = sw.lon - ds * sw.x
     se_lon = sw_lon + ds * width
+    _LOG.debug("bottom: %r ds=%r", bottom, ds)
 
     # north / south - west
     nw, sw = left
     ds = (nw.lat - sw.lat) / (nw.y - sw.y)
     nw_lat = nw.lat - ds * nw.y
     sw_lat = nw_lat + ds * height
+    _LOG.debug("left: %r ds=%r", left, ds)
 
     # north / south - east
     ne, se = right
     ds = (ne.lat - se.lat) / (ne.y - se.y)
     ne_lat = ne.lat - ds * ne.y
     se_lat = ne_lat + ds * height
+    _LOG.debug("right: %r ds=%r", right, ds)
 
     res = [
-        (0, 0, nw_lon, nw_lat),  # nw
-        (width, 0, ne_lon, ne_lat),  # ne
-        (width, height, se_lon, se_lat),  # se
-        (0, height, sw_lon, sw_lat)  # sw
+        Point(0,     0,      nw_lon, nw_lat, 0),  # nw
+        Point(width, 0,      ne_lon, ne_lat, 1),  # ne
+        Point(width, height, se_lon, se_lat, 2),  # se
+        Point(0,     height, sw_lon, sw_lat, 3)  # sw
     ]
     _LOG.debug("_calibrate_calculate %r", res)
     return res
