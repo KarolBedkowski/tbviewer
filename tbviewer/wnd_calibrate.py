@@ -26,6 +26,7 @@ from . import mapfile
 from . import formatting
 from . import dialogs
 from . import tkutils
+from . import mapmaker
 
 __author__ = "Karol Będkowski"
 __copyright__ = "Copyright (c) Karol Będkowski, 2015-2020"
@@ -229,10 +230,14 @@ class WndCalibrate(tk.Tk):
         btns_frame.grid()
 
         tk.Button(btns_frame, text="Calculate", command=self._calibrate)\
-            .grid(column=0, row=0)
+            .grid(column=0, row=0, columnspan=2)
 
         tk.Button(btns_frame, text="Save Map...", command=self._save_map_file)\
-            .grid(column=1, row=0)
+            .grid(column=0, row=1)
+
+        tk.Button(btns_frame, text="Save TBMap...",
+                  command=self._save_cut_map)\
+            .grid(column=1, row=1)
 
         return forms_frame
 
@@ -282,6 +287,8 @@ class WndCalibrate(tk.Tk):
                               command=self._open_map_file)
         file_menu.add_command(label="Save map file...",
                               command=self._save_map_file)
+        file_menu.add_command(label="Save TBmap...",
+                              command=self._save_cut_map)
         file_menu.add_command(label="Calibrate", command=self._calibrate)
         file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self.onExit)
@@ -371,8 +378,6 @@ class WndCalibrate(tk.Tk):
             initialdir=self._last_dir,
             initialfile=self._map_file.filename)
         if fname:
-            self._map_file.img_filename = self._img_filename
-            self._map_file.img_filepath = os.path.dirname(self._img_filename)
             content = self._map_file.to_str()
             try:
                 with open(fname, 'w') as f:
@@ -381,6 +386,28 @@ class WndCalibrate(tk.Tk):
                 messagebox.showerror("Save file error", str(err))
             else:
                 self._map_file.filename = fname
+
+    def _save_cut_map(self):
+        if not self._map_file.validate():
+            _LOG.warn("map not valid")
+            return
+        fname = filedialog.asksaveasfilename(
+            parent=self,
+            filetypes=[("Map file", ".map"), ("All files", "*.*")],
+            initialdir=self._last_dir,
+            initialfile=self._map_file.filename)
+        if fname:
+            content = self._map_file.to_str()
+            try:
+                mapmaker.create_map(
+                    self._img_filename,
+                    content,
+                    fname,
+                )
+            except IOError as err:
+                messagebox.showerror("Save file error", str(err))
+            else:
+                messagebox.showinfo("Trekbuddy map file created")
 
     def _move_scroll_v(self, scroll, num, units=None):
         self._canvas.yview(scroll, num, units)
@@ -500,6 +527,8 @@ class WndCalibrate(tk.Tk):
 
         self._map_file.image_width = self._img.width()
         self._map_file.image_height = self._img.height()
+        self._map_file.img_filename = self._img_filename
+        self._map_file.img_filepath = os.path.dirname(self._img_filename)
         points = [mapfile.Point(x=p.x, y=p.y, lon=p.lon, lat=p.lat, idx=idx)
                   for idx, p in enumerate(self._positions_data)]
         self._map_file.set_points(points)

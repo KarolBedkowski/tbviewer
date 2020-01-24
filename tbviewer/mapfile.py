@@ -132,9 +132,10 @@ class MapFile():
                  for idx, (x, y) in enumerate(self.mmpxy)]
         mmpll = [_MAP_MMPLL_TEMPLATE.format(idx=idx+1, lat=lat, lon=lon)
                  for idx, (lon, lat) in enumerate(self.mmpll)]
+        img_filename = self.img_filename or "dummy.jpg"
         return _MAP_TEMPALTE.format(
-            img_filename=self.img_filename or "dummy.jpg",
-            img_filepath=self.img_filepath or "dummy.jpg",
+            img_filename=img_filename,
+            img_filepath=self.img_filepath or img_filename,
             points="\n".join(points),
             mmplen=len(mmpxy),
             mmpxy="\n".join(mmpxy),
