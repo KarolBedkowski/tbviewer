@@ -27,6 +27,7 @@ from . import formatting
 from . import dialogs
 from . import tkutils
 from . import mapmaker
+from . import wnd_mapoptions
 
 __author__ = "Karol Będkowski"
 __copyright__ = "Copyright (c) Karol Będkowski, 2015-2020"
@@ -391,23 +392,23 @@ class WndCalibrate(tk.Tk):
         if not self._map_file.validate():
             _LOG.warn("map not valid")
             return
-        fname = filedialog.asksaveasfilename(
-            parent=self,
-            filetypes=[("Map file", ".map"), ("All files", "*.*")],
-            initialdir=self._last_dir,
-            initialfile=self._map_file.filename)
-        if fname:
-            content = self._map_file.to_str()
-            try:
-                mapmaker.create_map(
-                    self._img_filename,
-                    content,
-                    fname,
-                )
-            except IOError as err:
-                messagebox.showerror("Save file error", str(err))
-            else:
-                messagebox.showinfo("Trekbuddy map file created")
+        dlg = wnd_mapoptions.MapOptionsDialog(
+            self, self._last_dir, self._map_file.filename)
+        self.wait_window(dlg)
+        if not dlg.result:
+            return
+        content = self._map_file.to_str()
+        try:
+            mapmaker.create_map(
+                self._img_filename,
+                content,
+                dlg.options['filename'],
+                options=dlg.options
+            )
+        except IOError as err:
+            messagebox.showerror("Save file error", str(err))
+        else:
+            messagebox.showinfo("Create map", "Trekbuddy map file created")
 
     def _move_scroll_v(self, scroll, num, units=None):
         self._canvas.yview(scroll, num, units)
