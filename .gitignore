@@ -15,3 +15,5 @@ build
 /*.png
 /tags
 tbviewer.egg-info
+/.gtm/
+tmp/
