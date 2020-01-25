@@ -7,22 +7,20 @@
 #
 # Distributed under terms of the GPLv3 license.
 
-"""
+"""Ozy's map file loader/creator & calibration functions."""
 
-"""
 import logging
 import math
 
 from . import formatting
+from .errors import InvalidFileException
 
 _LOG = logging.getLogger(__name__)
 
 
-class InvalidFileException(RuntimeError):
-    pass
-
-
 class Point:
+    """Point on map."""
+
     def __init__(self, x, y, lon, lat, idx=None):
         self.idx = idx
         self.x = x
@@ -34,7 +32,7 @@ class Point:
         return formatting.prettydict(self.__dict__)
 
 
-def degree2minsec(d, lz='S', gz='N'):
+def _degree2minsec(d, lz='S', gz='N'):
     symb = gz
     if d < 0:
         d *= -1
@@ -44,6 +42,8 @@ def degree2minsec(d, lz='S', gz='N'):
 
 
 class MapFile():
+    """Ozi map file representation."""
+
     def __init__(self):
         self.clear()
 
@@ -121,8 +121,8 @@ class MapFile():
         points = []
         for idx, p in enumerate(self.points):
             _LOG.debug("Point %r", p)
-            lat_m, lat_s, lat_d = degree2minsec(p.lat, 'S', 'N')
-            lon_m, lon_s, lon_d = degree2minsec(p.lon, 'W', 'E')
+            lat_m, lat_s, lat_d = _degree2minsec(p.lat, 'S', 'N')
+            lon_m, lon_s, lon_d = _degree2minsec(p.lon, 'W', 'E')
             points.append(_MAP_POINT_TEMPLATE.format(
                 idx=idx, x=int(p.x), y=int(p.y),
                 lat_m=lat_m, lat_s=lat_s, lat_d=lat_d,
@@ -146,10 +146,12 @@ class MapFile():
         )
 
     def set_points(self, points):
+        """Set calibration points."""
         _LOG.debug("points: %r", points)
         self.points = points
 
     def calibrate(self):
+        """Calibrate map according to given points."""
         points = _calibrate_calculate(self.points, self.image_width,
                                       self.image_height)
         self.mmpll = []
@@ -175,10 +177,12 @@ class MapFile():
         self.mm1b = d_lon_dist / self.image_width
 
     def validate(self):
+        """Check is mapfile is valid."""
         _LOG.debug("mapfile: %s", self)
         return self.mmpnum == len(self.mmpxy) == len(self.mmpll) == 4
 
     def xy2latlon(self, x, y):
+        """Get geo location for given pixel coordinates."""
         if not self.mmpll:
             return None
         return _map_xy_lonlat(
@@ -344,14 +348,14 @@ def _intersect_lines(x1, y1, x2, y2, x3, y3, x4, y4):
     return px, py
 
 
-def distance(lat1, lon1, lat2, lon2):
-    dlat2 = math.radians(lat2 - lat1) / 2.
-    dlon2 = math.radians(lon2 - lon1) / 2.
-    lat1 = math.radians(lat1)
-    lat2 = math.radians(lat2)
-    a = math.sin(dlat2) * math.sin(dlat2) + \
-        math.cos(lat1) * math.cos(lat2) * math.sin(dlon2) * math.sin(dlon2)
-    return 12742. * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+# def distance(lat1, lon1, lat2, lon2):
+#     dlat2 = math.radians(lat2 - lat1) / 2.
+#     dlon2 = math.radians(lon2 - lon1) / 2.
+#     lat1 = math.radians(lat1)
+#     lat2 = math.radians(lat2)
+#     a = math.sin(dlat2) * math.sin(dlat2) + \
+#         math.cos(lat1) * math.cos(lat2) * math.sin(dlon2) * math.sin(dlon2)
+#     return 12742. * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
 _MAP_POINT_TEMPLATE = \

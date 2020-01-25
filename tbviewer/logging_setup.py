@@ -1,14 +1,11 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-""" Logging setup.
-Copyright (c) Karol Będkowski, 2015
+# Copyright (c) Karol Będkowski, 2015-2020
+#
+# This file is part of tbviewer
+# Distributed under terms of the GPLv3 license.
 
-This file is part of tbviewer
-Licence: GPLv2+
-"""
-__author__ = "Karol Będkowski"
-__copyright__ = "Copyright (c) Karol Będkowski, 2015"
-__version__ = "2015-05-12"
+"""Logging setup."""
 
 import sys
 import os.path
@@ -16,7 +13,8 @@ import logging
 
 
 class ColorFormatter(logging.Formatter):
-    """ Formatter for logs that color messages according to level. """
+    """Formatter for logs that color messages according to level."""
+
     FORMAT_MAP = {level: ("\033[1;%dm%s\033[0m" % (color, level))
                   for level, color in
                   (("DEBUG", 34), ("INFO", 37), ("WARNING", 33), ("ERROR", 31),
@@ -29,7 +27,7 @@ class ColorFormatter(logging.Formatter):
 
 
 def logging_setup(filename, debug=False):
-    """ Setup configuration.
+    """Configure global logger.
 
     Args:
         filename: log file name

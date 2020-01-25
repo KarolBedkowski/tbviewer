@@ -3,7 +3,6 @@
 # Copyright (c) Karol Będkowski, 2015-2020
 #
 # This file is part of tbviewer
-#
 # Distributed under terms of the GPLv3 license.
 
 """Main window for calibration module."""
@@ -28,9 +27,7 @@ from . import dialogs
 from . import tkutils
 from . import mapmaker
 from . import wnd_mapoptions
-
-__author__ = "Karol Będkowski"
-__copyright__ = "Copyright (c) Karol Będkowski, 2015-2020"
+from .errors import InvalidFileException
 
 _LOG = logging.getLogger(__name__)
 
@@ -337,7 +334,7 @@ class WndCalibrate(tk.Tk):
         if fname:
             try:
                 self._load_map(fname)
-            except mapfile.InvalidFileException as err:
+            except InvalidFileException as err:
                 messagebox.showerror(
                     "Error loading file", f"Invalid file: {err}")
             else:

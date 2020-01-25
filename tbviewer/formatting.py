@@ -3,13 +3,11 @@
 # vim:fenc=utf-8
 #
 # Copyright (c) Karol Będkowski, 2015-2020
-
+#
 # This file is part of tbviewer
-# Licence: GPLv2+
+# Distributed under terms of the GPLv3 license.
 
-"""
-
-"""
+"""Various common formatting data functions."""
 
 import math
 import locale

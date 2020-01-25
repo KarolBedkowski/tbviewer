@@ -1,12 +1,12 @@
 #!/usr/bin/python3 -OO
 # -*- coding: utf-8 -*-
-""" Startup application.
+#
+# Copyright © Karol Będkowski, 2015-2020
+#
+# This file is part of tbviewer
+# Distributed under terms of the GPLv3 license.
 
-Copyright (c) Karol Będkowski, 2015-2020
-
-This file is part of tbviewer
-Licence: GPLv2+
-"""
+"""Start application functions."""
 
 __author__ = "Karol Będkowski"
 __copyright__ = "Copyright (c) Karol Będkowski, 2015-2020"

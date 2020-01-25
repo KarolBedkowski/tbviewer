@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # vim:fenc=utf-8
 #
-# Copyright © 2020 Karol Będkowski <Karol Będkowski@kntbk>
+# Copyright © Karol Będkowski, 2020
 #
 # This file is part of tbviewer
 # Distributed under terms of the GPLv3 license.

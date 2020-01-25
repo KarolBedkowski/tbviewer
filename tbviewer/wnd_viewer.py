@@ -1,12 +1,11 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-""" Main window.
+# Copyright © Karol Będkowski, 2015-2020
+#
+# This file is part of tbviewer
+# Distributed under terms of the GPLv3 license.
 
-Copyright (c) Karol Będkowski, 2015-2020
-
-This file is part of tbviewer
-Licence: GPLv2+
-"""
+"""Viewer main window."""
 
 import logging
 import os.path
@@ -23,15 +22,15 @@ from tkinter import tix
 from . import map_loader
 from . import formatting
 from . import tkutils
+from .errors import InvalidFileException
 
-
-__author__ = "Karol Będkowski"
-__copyright__ = "Copyright (c) Karol Będkowski, 2015-2020"
 
 _LOG = logging.getLogger(__name__)
 
 
 class WndViewer(tk.Tk):
+    """Main viewer window."""
+
     def __init__(self, fname):
         tk.Tk.__init__(self)
 
@@ -196,7 +195,7 @@ class WndViewer(tk.Tk):
             self._zoom = 0
             self._canvas.config(scrollregion=(0, 0, self._map_image.width,
                                               self._map_image.height))
-        except map_loader.InvalidFileException as err:
+        except InvalidFileException as err:
             messagebox.showerror("Error loading file",
                                  f"Invalid file: {err}")
         except IOError as err:

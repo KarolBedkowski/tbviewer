@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-""" Map loader routines.
+#
+# Copyright © Karol Będkowski, 2015-2020
+#
+# This file is part of tbviewer
+# Distributed under terms of the GPLv3 license.
 
-Copyright (c) Karol Będkowski, 2015-2020
+"""Map loader."""
 
-This file is part of tbviewer
-Licence: GPLv2+
-"""
 import os.path
 import collections
 import tarfile
@@ -15,18 +16,12 @@ import io
 from PIL import ImageTk, Image
 
 from . import mapfile
-
-__author__ = "Karol Będkowski"
-__copyright__ = "Copyright (c) Karol Będkowski, 2015-2020"
+from .errors import InvalidFileException
 
 _LOG = logging.getLogger(__name__)
 
 
-class InvalidFileException(RuntimeError):
-    pass
-
-
-class TarredFS:
+class _TarredFS:
     def __init__(self, basefile):
         self._tar = tarfile.open(basefile)
 
@@ -72,7 +67,7 @@ class TarredFS:
             yield member
 
 
-class RealFS:
+class _RealFS:
     def __init__(self, basepath):
         self._basepath = basepath
 
@@ -107,11 +102,13 @@ class RealFS:
 
 
 class Atlas:
+    """Real Trekbuddy atlas representation."""
+
     def __init__(self, path):
         if path.endswith('.tba'):  # plain fs
-            self._fs = RealFS(os.path.dirname(path))
+            self._fs = _RealFS(os.path.dirname(path))
         elif path.endswith('.tar'):  # compressed fs
-            self._fs = TarredFS(path)
+            self._fs = _TarredFS(path)
 
         basedir = os.path.dirname(path)
         self.layers = sorted(self._load_layers(basedir))
@@ -129,6 +126,8 @@ class Atlas:
 
 
 class FakeAlbum:
+    """Fake album representation, i.e. only one map."""
+
     def __init__(self, path):
         self.layers = [("base", [(os.path.basename(path), path)])]
 
@@ -136,7 +135,7 @@ class FakeAlbum:
         pass
 
 
-def find_file_in_dir(path, ext):
+def _find_file_in_dir(path, ext):
     for fname in os.listdir(path):
         if fname.endswith(ext):
             return os.path.join(path, fname)
@@ -144,6 +143,8 @@ def find_file_in_dir(path, ext):
 
 
 class Map:
+    """Trekbuddy map representation."""
+
     def __init__(self, path):
         self._fs = self._find_fs(path)
         self.map_data = self._load_map_meta()
@@ -156,17 +157,17 @@ class Map:
     def _find_fs(self, path):
         if os.path.isfile(path):
             if path.endswith(".tar"):
-                return TarredFS(path)
+                return _TarredFS(path)
             if path.endswith(".map"):
-                return RealFS(os.path.dirname(path))
+                return _RealFS(os.path.dirname(path))
 
-        tar_file = find_file_in_dir(path, ".tar")
+        tar_file = _find_file_in_dir(path, ".tar")
         if tar_file:
-            return TarredFS(tar_file)
+            return _TarredFS(tar_file)
 
-        map_file = find_file_in_dir(path, ".map")
+        map_file = _find_file_in_dir(path, ".map")
         if map_file:
-            return RealFS(os.path.dirname(map_file))
+            return _RealFS(os.path.dirname(map_file))
 
         return None
 
@@ -266,6 +267,7 @@ def _check_valid_map_file(map_file):
 
 
 def check_file_type(file_name):
+    """Check what type of atlas/map is given file."""
     _LOG.debug("check_file_type: %s", file_name)
 
     if file_name.endswith(".tba"):

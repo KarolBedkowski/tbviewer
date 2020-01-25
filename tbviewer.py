@@ -1,15 +1,16 @@
 #!/usr/bin/python3 -OO
 # -*- coding: utf-8 -*-
-""" Startup application.
+# vim:fenc=utf-8
+#
+# Copyright © Karol Będkowski, 2014-2020
+#
+# This file is part of tbviewer
+# Distributed under terms of the GPLv3 license.
 
-Copyright (c) Karol Będkowski, 2015
-
-This file is part of tbviewer
-Licence: GPLv2+
-"""
+"""Start viewer application."""
 
 __author__ = "Karol Będkowski"
-__copyright__ = "Copyright (c) Karol Będkowski, 2014"
+__copyright__ = "Copyright (c) Karol Będkowski, 2014-2020"
 __version__ = "2015-05-10"
 
 

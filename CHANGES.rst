@@ -1,6 +1,10 @@
 Changelog
 =========
 
+v0.3
+-----
+* add callibration & map creation tool
+
 v0.2.2 2015-09-30
 -----------------
 * bugfix: loading untarred maps with _ in name

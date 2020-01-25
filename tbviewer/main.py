@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
-""" Main module.
+# vim:fenc=utf-8
+#
+# Copyright © Karol Będkowski, 2015-2020
+#
+# This file is part of tbviewer
+# Distributed under terms of the GPLv3 license.
 
-Copyright (c) Karol Będkowski, 2015
-
-This file is part of tbviewer
-Licence: GPLv2+
-"""
-
-__author__ = "Karol Będkowski"
-__copyright__ = "Copyright (c) Karol Będkowski, 2015"
-__version__ = "2015-05-10"
+"""Main module."""
 
 import optparse
 import logging
@@ -23,7 +20,7 @@ _LOG = logging.getLogger(__name__)
 
 
 def _parse_opt():
-    """ Parse cli options. """
+    """Parse cli options."""
     optp = optparse.OptionParser(version=version.NAME + version.VERSION)
     group = optparse.OptionGroup(optp, "Debug options")
     group.add_option("--debug", "-d", action="store_true", default=False,
@@ -61,7 +58,7 @@ def run_viewer():
 
 
 def run_calibrate():
-    """ Run application. """
+    """Run application."""
     # parse options
     options, args = _parse_opt()
 

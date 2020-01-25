@@ -1,15 +1,15 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-""" Startup application in debug mode.
+#
+# Copyright © Karol Będkowski, 2015-2020
+#
+# This file is part of tbviewer
+# Distributed under terms of the GPLv3 license.
 
-Copyright (c) Karol Będkowski, 2015
-
-This file is part of tbviewer
-Licence: GPLv2+
-"""
+"""Start application in debug mode."""
 
 __author__ = "Karol Będkowski"
-__copyright__ = "Copyright (c) Karol Będkowski, 2015"
+__copyright__ = "Copyright (c) Karol Będkowski, 2015-2020"
 __version__ = "2015-05-10"
 
 import sys
@@ -18,10 +18,11 @@ if '--profile' not in sys.argv:
 
 
 def _profile():
-    """ profile app """
+    """Profile app."""
     import cProfile
     print('Profiling....')
-    cProfile.run('from tbviewer.main import run_calibrate; run_calibrate()', 'profile.tmp')
+    cProfile.run('from tbviewer.main import run_calibrate; run_calibrate()',
+                 'profile.tmp')
     import pstats
     import time
     with open('profile_result_%d.txt' % int(time.time()), 'w') as out:
@@ -36,7 +37,7 @@ def _profile():
 
 
 def _memprofile():
-    """ mem profile app """
+    """Mem profile."""
     from tbviewer import main
     main.run_calibrate()
     import gc
