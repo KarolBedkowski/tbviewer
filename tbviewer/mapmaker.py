@@ -19,7 +19,34 @@ from PIL import Image
 _LOG = logging.getLogger(__name__)
 
 
-def cut_map(filename, dst_dir, dst_name, tile_size=None, force=False):
+def _create_img_saver(options):
+    if options.get('format') == 'PNG':
+        compr = options.get('png_compression')
+
+        opts = {
+            'optimize': compr == 'optimized',
+            'compress_level': (int(compress_level)
+                               if compr != 'optimized' else 7),
+        }
+
+        if options.get('png_palette') == 'RGB':
+            _LOG.info("_create_img_saver png rgb, opts=%r", opts)
+            imgsavef = lambda img, fname: img.save(fname, 'PNG', **opts)
+            return imgsavef, 'png'
+
+        _LOG.info("_create_img_saver png palette, opts=%r", opts)
+        imgsavef = lambda img, fname: img.convert(mode='P')\
+            .save(fname, 'PNG', **opts)
+        return imgsavef, 'png'
+
+    jpg_q = int(options.get('jpeg_quality') or 75)
+    _LOG.info("_create_img_saver jpg, quality=%r", jpg_q)
+    imgsavef = lambda img, fname: img.save(fname, 'JPEG', quality=jpg_q,
+                                           optimize=True)
+    return imgsavef, 'jpg'
+
+
+def cut_map(filename, dst_dir, dst_name, options):
     """Cut image into tiles and create set file/dir.
 
     :param filename: image filename
@@ -29,8 +56,9 @@ def cut_map(filename, dst_dir, dst_name, tile_size=None, force=False):
     img = Image.open(filename)
     img_width = img.width
     img_height = img.height
-    tile_width, tile_height = tile_size or (256, 256)
-
+    tile_width, tile_height = options.get('tile_size') or (256, 256)
+    force = bool(options.get('force'))
+    imgsavef, imgext = _create_img_saver(options)
     dst_name = os.path.splitext(dst_name)[0]
 
     img_dst_dir = os.path.join(dst_dir, "set")
@@ -41,16 +69,17 @@ def cut_map(filename, dst_dir, dst_name, tile_size=None, force=False):
     img_names = []
     for x in range(0, img_width, tile_width):
         for y in range(0, img_height, tile_height):
-            fname = f"{dst_name}_{x}_{y}.jpg"
+            fname = f"{dst_name}_{x}_{y}.{imgext}"
+            img_names.append(fname)
+
             if fname in existing_files:
                 _LOG.debug("skipping %s", fname)
                 continue
 
             _LOG.debug("creating %s", fname)
-            img_names.append(fname)
-            simg = img.copy().crop((x, y, x + tile_width, y + tile_height))
+            simg = img.crop((x, y, x + tile_width, y + tile_height))
             img_filepath = os.path.join(img_dst_dir, fname)
-            simg.save(img_filepath, "JPEG")
+            imgsavef(simg, img_filepath)
             simg = None
 
     set_fname = dst_name + ".set"
@@ -74,8 +103,7 @@ def create_map(img_filename, map_content, dst_file, options=None):
     opt.update(options or {})
     dst_dir = os.path.dirname(dst_file)
     name = os.path.basename(dst_file)
-    cut_map(img_filename, dst_dir, name, tile_size=opt['tile_size'],
-            force=opt['force'])
+    cut_map(img_filename, dst_dir, name, options)
     if map_content:
         with open(dst_file, "wt") as fmap:
             fmap.write(map_content)
