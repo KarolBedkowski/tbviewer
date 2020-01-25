@@ -1,12 +1,12 @@
 #!/usr/bin/python3
-# -*- coding: utf-8 -*-
-""" Main window.
+# vim:fenc=utf-8
+# Copyright (c) Karol Będkowski, 2015-2020
+#
+# This file is part of tbviewer
+#
+# Distributed under terms of the GPLv3 license.
 
-Copyright (c) Karol Będkowski, 2015-2020
-
-This file is part of tbviewer
-Licence: GPLv2+
-"""
+"""Main window for calibration module."""
 
 import logging
 import os.path
@@ -33,6 +33,14 @@ __author__ = "Karol Będkowski"
 __copyright__ = "Copyright (c) Karol Będkowski, 2015-2020"
 
 _LOG = logging.getLogger(__name__)
+
+
+def _check_variable_val(variable, min_value, max_value):
+    try:
+        value = variable.get()
+        return value >= min_value and value <= max_value
+    except:
+        return False
 
 
 class FormPosition:
@@ -93,38 +101,21 @@ class FormPosition:
             (-1 if self.lat_d.get() == 'S' else 1)
 
     def validate_lon_m(self):
-        try:
-            value = self.lon_m.get()
-            return value >= -180 and value <= 180
-        except:
-            return False
+        return _check_variable_val(self.lon_m, -180, 180)
 
     def validate_lon_s(self):
-        try:
-            value = self.lon_s.get()
-            return value >= 0.0 and value <= 60.0
-        except:
-            return False
+        return _check_variable_val(self.lon_s, 0.0, 60.0)
 
     def validate_lat_m(self):
-        try:
-            value = self.lat_m.get()
-            return value >= -90 and value <= 90
-        except:
-            return False
+        return _check_variable_val(self.lat_m, -90, 90)
 
     def validate_lat_s(self):
-        try:
-            value = self.lat_s.get()
-            return value >= 0.0 and value <= 60.0
-        except:
-            return False
+        return _check_variable_val(self.lat_s, 0.0, 60.0)
 
     def validate(self):
-        return self.validate_lon_m() and \
-            self.validate_lon_s() and \
-            self.validate_lat_m() and \
-            self.validate_lat_s()
+        return self.x is not None and self.y is not None \
+            and self.validate_lon_m() and self.validate_lon_s \
+            and self.validate_lat_m() and self.validate_lat_s
 
 
 class WndCalibrate(tk.Tk):
@@ -255,7 +246,7 @@ class WndCalibrate(tk.Tk):
             .grid(row=0, columnspan=3)
 
         tk.Label(form_frame, text="Lon").grid(row=1, columnspan=3)
-        tk.Entry(form_frame, textvariable=pos.lon_m, width=3,
+        tk.Entry(form_frame, textvariable=pos.lon_m, width=4,
                  validate="focus", validatecommand=pos.validate_lon_m).\
             grid(row=2, column=0)
         tk.Entry(form_frame, textvariable=pos.lon_s, width=12,
@@ -359,7 +350,6 @@ class WndCalibrate(tk.Tk):
             content = f.read()
         self._map_file.parse_map(content)
         self._map_file.filename = fname
-        _LOG.debug(self._map_file.to_str())
         for idx, p in enumerate(self._map_file.points[:4]):
             pdata = self._positions_data[idx]
             pdata.set_lat(p.lat)
@@ -370,9 +360,9 @@ class WndCalibrate(tk.Tk):
         self._draw()
 
     def _save_map_file(self):
-        if not self._map_file.validate():
-            _LOG.warn("map not valid")
+        if not self._validate():
             return
+
         fname = filedialog.asksaveasfilename(
             parent=self,
             filetypes=[("Map file", ".map"), ("All files", "*.*")],
@@ -389,9 +379,9 @@ class WndCalibrate(tk.Tk):
                 self._map_file.filename = fname
 
     def _save_cut_map(self):
-        if not self._map_file.validate():
-            _LOG.warn("map not valid")
+        if not self._validate():
             return
+
         dlg = wnd_mapoptions.MapOptionsDialog(
             self, self._last_dir, self._map_file.filename)
         self.wait_window(dlg)
@@ -426,7 +416,6 @@ class WndCalibrate(tk.Tk):
     def _scroll_end(self, event):
         if (event.x, event.y) != self._click_pos:
             return
-        _LOG.info("click")
 
     def _scroll_move(self, event):
         self._canvas.scan_dragto(event.x, event.y, gain=1)
@@ -460,7 +449,6 @@ class WndCalibrate(tk.Tk):
         self._status_zoom.config(text=f"{scale:0.2f}x")
 
     def _canvas_mouse_wheel(self, event):
-        _LOG.debug("event: %r", event)
         if event.num == 5 or event.delta == -120 and self._scale > -5:
             self._scale -= 1
         elif event.num == 4 or event.delta == 120 and self._scale < 1:
@@ -514,16 +502,15 @@ class WndCalibrate(tk.Tk):
 
     def _calibrate(self):
         for idx, p in enumerate(self._positions_data):
-            if p.x is None or p.y is None:
-                messagebox.showerror(
-                    "Calibration error", f"Please set {idx + 1} marker")
-                return
             if not p.validate():
                 messagebox.showerror(
-                    "Calibration error", "Invalid data for marker {idx + 1}")
+                    "Calibration error",
+                    "Marker {idx + 1} not set or has invalid data")
                 return
 
         if not self._img:
+            messagebox.showerror("Error",
+                                 "Please load image and calibrate map")
             return
 
         self._map_file.image_width = self._img.width()
@@ -536,7 +523,18 @@ class WndCalibrate(tk.Tk):
         self._map_file.calibrate()
 
         content = self._map_file.to_str()
-        _LOG.debug("content: %r", content)
         d = dialogs.TextDialog(
             self, "Calibrate completed; .map file content", content)
         self.wait_window(d)
+
+    def _validate(self):
+        if not self._img:
+            messagebox.showerror("Error",
+                                 "Please load image and calibrate map")
+            return False
+
+        if not self._map_file.validate():
+            messagebox.showerror("Error", "Please calibrate map")
+            return False
+
+        return True
