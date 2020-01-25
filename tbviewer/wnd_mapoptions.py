@@ -7,12 +7,21 @@
 
 """Mapmaker options dialog."""
 
+import os.path
+
 import tkinter as tk
 from tkinter import filedialog
 
 
 class MapOptionsDialog(tk.Toplevel):
     """Dialog with options for new trekbuddy map."""
+
+    _opts = {
+        'tile_size': (256, 256),
+        'create_tar': True,
+        'force': False,
+        'filename': "",
+    }
 
     def __init__(self, parent, last_dir, last_map_file, options=None):
         """Create dialog.
@@ -21,30 +30,29 @@ class MapOptionsDialog(tk.Toplevel):
         """
         tk.Toplevel.__init__(self, parent, borderwidth=5)
         self.transient(parent)
-        self.options = {
-            'tile_size': (256, 256),
-            'create_tar': True,
-            'force': False,
-            'filename': "",
-        }
+        self.options = MapOptionsDialog._opts.copy()
+        if last_map_file:
+            self.options['filename'] = last_map_file
         if options:
             self.options.update(options)
 
         self.last_dir = last_dir
-        self.last_map_file = last_map_file
         self.result = False
 
+        self.grid_columnconfigure(0, weight=0)
         self.grid_columnconfigure(1, weight=1)
 
         tk.Label(self, text="Tile width").grid(row=0, column=0)
         self._var_tile_w = tk.IntVar()
         self._var_tile_w.set(self.options['tile_size'][0])
-        tk.Entry(self, textvariable=self._var_tile_w).grid(row=0, column=1)
+        tk.Entry(self, textvariable=self._var_tile_w).grid(
+            row=0, column=1, sticky=tk.NW)
 
         tk.Label(self, text="Tile height").grid(row=1, column=0)
         self._var_tile_h = tk.IntVar()
         self._var_tile_h.set(self.options['tile_size'][1])
-        tk.Entry(self, textvariable=self._var_tile_w).grid(row=1, column=1)
+        tk.Entry(self, textvariable=self._var_tile_w).grid(
+            row=1, column=1, sticky=tk.NW)
 
         self._var_tar = tk.BooleanVar()
         self._var_tar.set(self.options['force'])
@@ -57,14 +65,24 @@ class MapOptionsDialog(tk.Toplevel):
                        variable=self._var_force)\
             .grid(row=4, columnspan=2, column=0, sticky=tk.NW)
 
-        tk.Label(self, text="Select map file name").grid(column=0, row=5)
-        tk.Button(self, text="...", command=self._select_filename)\
-            .grid(column=1, row=5)
+        tk.Label(self, text="Map file name").grid(column=0, row=5)
+        sfr = tk.Frame(self, pady=10)
+        sfr.grid_columnconfigure(0, weight=1)
+        sfr.grid_columnconfigure(1, weight=0)
+        sfr.grid(column=1, row=5, sticky=tk.NSEW)
+        self._var_filename = tk.StringVar()
+        self._var_filename.set(self.options['filename'])
+        tk.Entry(sfr, textvariable=self._var_filename).grid(
+            row=0, column=0, sticky=tk.NSEW)
+        tk.Button(sfr, text="...", command=self._select_filename)\
+            .grid(column=1, row=0)
 
-        tk.Button(self, text="OK", command=self._ok)\
-            .grid(column=0, row=6)
-        tk.Button(self, text="Cancel", command=self.destroy)\
-            .grid(column=1, row=6)
+        sfr = tk.Frame(self)
+        sfr.grid(column=0, row=6, columnspan=2, sticky=tk.E)
+        tk.Button(sfr, text="OK", command=self._ok)\
+            .grid(column=0, row=0)
+        tk.Button(sfr, text="Cancel", command=self.destroy)\
+            .grid(column=1, row=0)
 
     def _ok(self):
         if not self.options['filename']:
@@ -75,14 +93,20 @@ class MapOptionsDialog(tk.Toplevel):
         self.options['create_tar'] = self._var_tar.get()
         self.options['force'] = self._var_force.get()
 
+        MapOptionsDialog._opts = self.options.copy()
+
         self.result = True
         self.destroy()
 
     def _select_filename(self):
+        var_fname = self._var_filename.get()
+        initialdir = os.path.dirname(var_fname) if var_fname else \
+            self.last_dir
         fname = filedialog.asksaveasfilename(
             parent=self,
             filetypes=[("Map file", ".map"), ("All files", "*.*")],
-            initialdir=self.last_dir,
-            initialfile=self.last_map_file)
+            initialdir=initialdir,
+            initialfile=var_fname)
         if fname:
             self.options['filename'] = fname
+            self._var_filename.set(fname)
