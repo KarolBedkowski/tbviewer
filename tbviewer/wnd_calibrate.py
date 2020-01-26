@@ -473,9 +473,10 @@ class WndCalibrate(tk.Tk):
                 if p and not clear:
                     canvas.coords(p[0], x, y - 20, x, y + 20)
                     canvas.coords(p[1], x - 20, y, x + 20, y)
-                    canvas.coords(p[2], x + 7, y + 7)  # label
+                    canvas.coords(p[2], x + 12, y + 12)  # label
                     canvas.coords(p[3], x - 20, y - 20, x + 20, y + 20)
                     canvas.coords(p[4], x - 20, y - 20, x + 20, y + 20)
+                    canvas.coords(p[5], x + 3, y + 3, x + 20, y + 20)
                 else:
                     l1 = canvas.create_line(x, y - 20, x, y + 20, fill="red",
                                             tag="marker")
@@ -489,10 +490,12 @@ class WndCalibrate(tk.Tk):
                                             activewidth="3", width="2",
                                             outline="red",
                                             tag="marker")
-                    t = canvas.create_text(x + 7, y + 7, fill="red",
+                    tb = canvas.create_oval(x + 3, y + 3, x + 20, y + 20,
+                                            fill="white")
+                    t = canvas.create_text(x + 12, y + 12, fill="red",
                                            text=str(idx + 1),
                                            tag="marker")
-                    self._positions_data[idx].marker = (l1, l2, t, o, o2)
+                    self._positions_data[idx].marker = (l1, l2, t, o, o2, tb)
 
         self._busy_manager.notbusy()
         self.update_idletasks()
