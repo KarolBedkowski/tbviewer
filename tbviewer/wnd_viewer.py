@@ -243,9 +243,9 @@ class WndViewer(tk.Tk):
         self._status_scale.config(text=f"{scale:0.2f}x")
 
     def _canvas_mouse_wheel(self, event):
-        if event.num == 5 or event.delta == -120 and self._zoom > -5:
+        if (event.num == 5 or event.delta == -120) and self._zoom > -5:
             self._zoom -= 1
-        elif event.num == 4 or event.delta == 120 and self._zoom < 5:
+        elif (event.num == 4 or event.delta == 120) and self._zoom < 5:
             self._zoom += 1
         self._clear_tile_cache()
 
