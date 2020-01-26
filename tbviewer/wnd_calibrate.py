@@ -197,13 +197,13 @@ class WndCalibrate(tk.Tk):
         map_frame.grid_columnconfigure(0, weight=1)
         map_frame.grid_rowconfigure(0, weight=1)
 
-        h = ttk.Scrollbar(map_frame, orient=tk.HORIZONTAL)
+        h = ttk.Scrollbar(map_frame, orient=tk.HORIZONTAL,
+                          command=self._move_scroll_h)
         h.grid(column=0, row=1, sticky=tk.EW)
-        h['command'] = self._move_scroll_h
 
-        v = ttk.Scrollbar(map_frame, orient=tk.VERTICAL)
+        v = ttk.Scrollbar(map_frame, orient=tk.VERTICAL,
+                          command=self._move_scroll_v)
         v.grid(column=1, row=0, sticky=tk.NS)
-        v['command'] = self._move_scroll_v
 
         self._canvas = tk.Canvas(map_frame, scrollregion=(0, 0, 1000, 1000),
                                  yscrollcommand=v.set, xscrollcommand=h.set)
@@ -239,7 +239,8 @@ class WndCalibrate(tk.Tk):
         form_frame.grid_columnconfigure(2, weight=0)
 
         tk.Radiobutton(form_frame, text="Point " + str(idx+1),
-                       variable=self._sel_point, value=idx)\
+                       variable=self._sel_point, value=idx,
+                       command=self._on_point_rb)\
             .grid(row=0, columnspan=3)
 
         tk.Label(form_frame, text="Lon").grid(row=1, columnspan=3)
@@ -456,6 +457,22 @@ class WndCalibrate(tk.Tk):
         self._load(self._img_filename)
         self._draw(True)
         self._canvas_mouse_motion(event)
+
+    def _on_point_rb(self):
+        selected = self._sel_point.get()
+        x = self._positions_data[selected].x
+        y = self._positions_data[selected].y
+        if x is not None and y is not None:
+            dx = float(x) / self._img.width()
+            dy = float(y) / self._img.height()
+            # center point on screen
+            ddx = self._canvas.winfo_width() / 2.0 / self._img.width()
+            ddy = self._canvas.winfo_height() / 2.0 / self._img.height()
+            dx += -ddx if dx < 0.5 else ddx
+            dy += -ddy if dy < 0.5 else ddy
+            self._canvas.xview_moveto(max(min(dx, 1.0), 0.0))
+            self._canvas.yview_moveto(max(min(dy, 1.0), 0.0))
+            self._draw()
 
     def _draw(self, clear=False):
         self._busy_manager.busy()
