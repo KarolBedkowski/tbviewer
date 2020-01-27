@@ -55,7 +55,11 @@ class FormPosition:
         self.marker = None
 
     def reset(self):
-        pass
+        self.x = None
+        self.y = None
+        self.set_lon(0)
+        self.set_lat(0)
+        self.marker = None
 
     def __str__(self):
         return "<Position {}>".format(", ".join(
@@ -293,8 +297,6 @@ class WndCalibrate(tk.Tk):
         if fname:
             self._load(fname)
             self._last_dir = os.path.dirname(fname)
-            for p in self._positions_data:
-                p.reset()
 
     def _load_img(self, fname):
         if self._scale == 0:
@@ -308,6 +310,8 @@ class WndCalibrate(tk.Tk):
         return img
 
     def _load(self, fname):
+        if not fname:
+            return
         self._busy_manager.busy()
         self.update()
         self._canvas.delete('img')
@@ -325,9 +329,21 @@ class WndCalibrate(tk.Tk):
                 scrollregion=(0, 0, img.width() + 40, img.height() + 40))
             self.update_idletasks()
             self._img_filename = fname
+            if self._map_file.image_width != img.width() or \
+                    self._map_file.image_height != img.height():
+                self._map_file.clear()
+                for p in self._positions_data:
+                    p.reset()
+            self._canvas.delete('marker')
+
         self._busy_manager.notbusy()
 
     def _open_map_file(self):
+        if not self._img:
+            messagebox.showerror(
+                "Error loading file", "Please open image file first.")
+            return
+
         fname = filedialog.askopenfilename(
             parent=self,
             filetypes=[("Map file", ".map"), ("All files", "*.*")],
