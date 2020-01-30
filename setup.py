@@ -23,7 +23,7 @@ REQUIRES = [
 setup(
     name='tbviewer',
     version=tbviewer.version.VERSION,
-    description='tbviewer - Trekbuddy atlas/map viewer.',
+    description='tbviewer - Trekbuddy atlas/map viewer/calibrator.',
     long_description=open("README.rst").read(),
     classifiers=CLASSIFIERS,
     author='Karol Będkowski',
@@ -31,8 +31,7 @@ setup(
     url='',
     download_url='',
     license='GPL v3',
-    py_modules=['tbviewer', 'tbviewer_dbg', 'tbcalibrate.py',
-                'tbcalibrate_dbg.py'],
+    py_modules=[],
     packages=find_packages('.'),
     package_dir={'': '.'},
     include_package_data=True,

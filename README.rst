@@ -12,7 +12,7 @@ Simple TrekBuddy atlas/map viewer and map calibration/cutter tool.
 
 tbcalibrate allow to load image file, calibrate it (4 point are
 required), create OZI's map file and cut image to Trekbuddy map.
-Callibration alghorytm is very simple, so not expect too much...
+Callibration algorithm is very simple, so not expect too much...
 
 
 Disclaimer
@@ -27,7 +27,7 @@ Installation
 ============
 
 This application don't require special steps to install.
-Just unpack and run via tbviewer.py
+Just unpack and run via tbviewer.py or tbcalibrate.py
 
 Runtime Requirements
 --------------------
