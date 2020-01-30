@@ -1,9 +1,10 @@
 Changelog
 =========
 
-v0.3
------
+v0.3.0 2020-01-30
+-----------------
 * add callibration & map creation tool
+* rewrite some parts
 
 v0.2.2 2015-09-30
 -----------------
