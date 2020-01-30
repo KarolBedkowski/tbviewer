@@ -16,7 +16,6 @@ CLASSIFIERS = [
 
 REQUIRES = [
     'setuptools',
-    'tkinter',
 ]
 
 
@@ -38,7 +37,7 @@ setup(
     install_requires=REQUIRES,
     entry_points="""
        [console_scripts]
-       tbviewer = tbviewer.main:run
+       tbviewer = tbviewer.main:run_viewer
        tbcalibrate = tbviewer.main:run_calibrate
     """,
     zip_safe=True,
