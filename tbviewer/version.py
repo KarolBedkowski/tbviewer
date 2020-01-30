@@ -15,9 +15,9 @@ _ = gettext.gettext
 
 SHORTNAME = "tbviewer"
 NAME = _("tbviewer")
-VERSION = "0.2.1"
-VERSION_INFO = (0, 2, 2, "alpha", 1)
-RELEASE = "2015-09-30"
+VERSION = "0.3.0"
+VERSION_INFO = (0, 3, 0, "alpha", 1)
+RELEASE = "2020-01-30"
 DESCRIPTION = _("""tbviewer""")
 DEVELOPERS = u"""Karol Będkowski"""
 TRANSLATORS = u"""Karol Będkowski"""

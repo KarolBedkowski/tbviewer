@@ -1,8 +1,8 @@
 ++++++++++++++++++++++
- tbViewer ver 0.x.x
+ tbViewer ver 0.3.x
 ++++++++++++++++++++++
 
-:Credits: Copyright (c) Karol Będkowski, 2015
+:Credits: Copyright (c) Karol Będkowski, 2015-2020
 :Licence: GPLv3+
 :Status: alpha (working, bugs)
 :Tags: maps
@@ -32,7 +32,7 @@ Just unpack and run via tbviewer.py or tbcalibrate.py
 Runtime Requirements
 --------------------
 
-* Python 3.x
+* Python 3.7+
 * tkinter
   * debian: python3-tk package
 * python pil imagetk (python3-pil.imagetk)
