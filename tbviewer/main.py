@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
-""" Main module.
+# vim:fenc=utf-8
+#
+# Copyright © Karol Będkowski, 2015-2020
+#
+# This file is part of tbviewer
+# Distributed under terms of the GPLv3 license.
 
-Copyright (c) Karol Będkowski, 2015
-
-This file is part of tbviewer
-Licence: GPLv2+
-"""
-
-__author__ = "Karol Będkowski"
-__copyright__ = "Copyright (c) Karol Będkowski, 2015"
-__version__ = "2015-05-10"
+"""Main module."""
 
 import optparse
 import logging
@@ -17,14 +14,13 @@ import tempfile
 import time
 import os
 
+from . import version
+
 _LOG = logging.getLogger(__name__)
 
 
-from . import version
-
-
 def _parse_opt():
-    """ Parse cli options. """
+    """Parse cli options."""
     optp = optparse.OptionParser(version=version.NAME + version.VERSION)
     group = optparse.OptionGroup(optp, "Debug options")
     group.add_option("--debug", "-d", action="store_true", default=False,
@@ -35,8 +31,8 @@ def _parse_opt():
     return optp.parse_args()
 
 
-def run():
-    """ Run application. """
+def run_viewer():
+    """Run viewer application."""
     # parse options
     options, args = _parse_opt()
 
@@ -53,9 +49,36 @@ def run():
         app.start()
         return
 
-    from . import wnd_main
+    from . import wnd_viewer
 
     fname = args[0] if args and args[0] else None
 
-    window = wnd_main.WndMain(fname)
+    window = wnd_viewer.WndViewer(fname)
+    window.mainloop()
+
+
+def run_calibrate():
+    """Run application."""
+    # parse options
+    options, args = _parse_opt()
+
+    # logowanie
+    from .logging_setup import logging_setup
+    logdir = tempfile.mkdtemp("_log_" + str(int(time.time())), "tbviewer_")
+    logging_setup(os.path.join(logdir, "tbviewer.log"), options.debug)
+
+    if options.shell:
+        # starting interactive shell
+        from IPython.terminal import ipapp
+        app = ipapp.TerminalIPythonApp.instance()
+        app.initialize(argv=[])
+        app.start()
+        return
+
+    from . import wnd_calibrate
+
+    fname = args[0] if args else None
+    mapfname = args[1] if args and len(args) > 1 else None
+
+    window = wnd_calibrate.WndCalibrate(fname, mapfname)
     window.mainloop()

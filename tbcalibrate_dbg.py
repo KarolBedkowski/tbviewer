@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# vim:fenc=utf-8
 #
 # Copyright © Karol Będkowski, 2015-2020
 #
@@ -22,7 +21,7 @@ def _profile():
     """Profile app."""
     import cProfile
     print('Profiling....')
-    cProfile.run('from tbviewer.main import run_viewer; run_viewer()',
+    cProfile.run('from tbviewer.main import run_calibrate; run_calibrate()',
                  'profile.tmp')
     import pstats
     import time
@@ -38,9 +37,9 @@ def _profile():
 
 
 def _memprofile():
-    """Mem profile app."""
+    """Mem profile."""
     from tbviewer import main
-    main.run_viewer()
+    main.run_calibrate()
     import gc
     gc.collect()
     while gc.collect() > 0:
@@ -64,5 +63,5 @@ if __name__ == "__main__":
         from tbviewer import version
         print(version.INFO)
     else:
-        from tbviewer import main
-        main.run_viewer()
+        from tbviewer.main import run_calibrate
+        run_calibrate()
